@@ -23,7 +23,9 @@ if (!fs.existsSync('uploads')) {
 const classifyTransaction = (description) => {
   const desc = description.toUpperCase();
   if (desc.includes('SALARY')) return 'Salary';
-  if (desc.includes('RENT')) return 'Rent';
+  if (desc.includes('RENT')) return 'Rent Income';
+  if (desc.includes('GST')) return 'GST Payable';
+  if (desc.includes('TDS')) return 'TDS Payable';
   if (desc.includes('LOAN') || desc.includes('EMI')) return 'Loan';
   if (desc.includes('INTEREST') || desc.includes('INT.PD')) return 'Interest';
 
@@ -135,15 +137,35 @@ app.post('/generate-entries', (req, res) => {
     let creditAccount = '';
 
     if (t.type === 'credit') {
-      debitAccount = accountName;
-      creditAccount = 'Bank';
-      entryText = `${debitAccount} A/c     Dr.  ${amount}\n   To ${creditAccount} A/c      Cr.  ${amount}`;
-    } else if (t.type === 'debit') {
       debitAccount = 'Bank';
       creditAccount = accountName;
-      entryText = `${debitAccount} A/c     Dr.  ${amount}\n   To ${creditAccount} A/c      Cr.  ${amount}`;
+    } else if (t.type === 'debit') {
+      debitAccount = accountName;
+      creditAccount = 'Bank';
     } else {
-      entryText = `Unknown Entry Type for ${amount}`;
+      debitAccount = 'Unknown';
+      creditAccount = 'Unknown';
+    }
+    
+    entryText = `${debitAccount} A/c     Dr.  ${amount}\n   To ${creditAccount} A/c      Cr.  ${amount}`;
+
+    // Generate Narration
+    let narration = `(Being ${t.description.toLowerCase()})`;
+    const descUpper = t.description.toUpperCase();
+    if (descUpper.includes('NEFT')) {
+      narration = t.type === 'credit' ? '(Being amount received via NEFT)' : '(Being amount paid via NEFT)';
+    } else if (descUpper.includes('RTGS')) {
+      narration = t.type === 'credit' ? '(Being amount received via RTGS)' : '(Being amount paid via RTGS)';
+    } else if (descUpper.includes('UPI')) {
+      narration = t.type === 'credit' ? '(Being amount received via UPI)' : '(Being amount paid via UPI)';
+    } else if (descUpper.includes('GST')) {
+      narration = '(Being GST paid)';
+    } else if (descUpper.includes('CHQ') || descUpper.includes('CHEQUE')) {
+      narration = t.type === 'credit' ? '(Being cheque deposited)' : '(Being cheque issued)';
+    } else if (t.type === 'credit') {
+      narration = '(Being amount received)';
+    } else {
+      narration = '(Being amount paid)';
     }
 
     return {
@@ -154,7 +176,8 @@ app.post('/generate-entries', (req, res) => {
       category: t.category,
       debitAccount,
       creditAccount,
-      entry: entryText
+      entry: entryText,
+      narration: narration
     };
   });
 

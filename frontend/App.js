@@ -10,8 +10,8 @@ import * as Print from 'expo-print';
 
 // API Configuration
 // Pointing back to your laptop via local IP
-const API_URL = 'http://192.168.0.10:3000';
-
+const API_URL = 'http://10.208.82.38:3000';
+//const API_URL = 'http://192.168.0.4:3000'; // home wifi
 const Stack = createNativeStackNavigator();
 
 // --- 1. Upload Screen ---
@@ -179,24 +179,24 @@ function JournalScreen({ route }) {
 
   const handleDownloadPDF = async () => {
     try {
-      let htmlRows = entries.map(item => {
-        // Fallback for pre-existing or old entries missing debitAccount
+      let htmlRows = entries.map((item, index) => {
         const debAcc = item.debitAccount || 'Accounts';
         const credAcc = item.creditAccount || 'Accounts';
+        const narration = item.narration || `(Being ${item.description})`;
 
         return `
         <tr>
+          <td>${index + 1}</td>
           <td style="white-space: nowrap;">${item.date}</td>
-          <td>${item.category}</td>
           <td>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span><strong>${debAcc} A/c</strong> Dr.</span>
-              <span style="padding-left: 10px;">${item.amount}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding-left: 30px;">
-              <span>To <strong>${credAcc} A/c</strong></span>
-              <span style="padding-left: 10px;">${item.amount}</span>
-            </div>
+            <div style="margin-bottom: 4px;"><strong>${debAcc} A/c</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Dr.</div>
+            <div style="padding-left: 30px; margin-bottom: 4px;">To <strong>${credAcc} A/c</strong></div>
+            <div style="font-style: italic; color: #555;">[${narration}]</div>
+          </td>
+          <td></td>
+          <td style="text-align: right;">${item.amount}</td>
+          <td style="text-align: right;">
+            <div style="margin-top: 24px;">${item.amount}</div>
           </td>
         </tr>
       `}).join('');
@@ -206,19 +206,22 @@ function JournalScreen({ route }) {
           <head>
             <style>
               body { font-family: 'Helvetica', sans-serif; padding: 20px; font-size: 14px; }
-              h1 { text-align: center; color: #4A90E2; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; }
-              th { background-color: #f8f9fa; }
+              h1 { text-align: center; color: #333; margin-bottom: 30px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th, td { border: 1px solid #333; padding: 12px; vertical-align: top; }
+              th { background-color: #f8f9fa; text-align: center; }
             </style>
           </head>
           <body>
             <h1>Journal Entries</h1>
             <table>
               <tr>
+                <th style="width: 5%;">Sl No</th>
                 <th style="width: 12%;">Date</th>
-                <th style="width: 15%;">Category</th>
-                <th style="width: 73%;">Particulars & Amounts</th>
+                <th style="width: 50%;">Particulars</th>
+                <th style="width: 5%;">L.F</th>
+                <th style="width: 14%;">Debit Rs.</th>
+                <th style="width: 14%;">Credit Rs.</th>
               </tr>
               ${htmlRows}
             </table>
@@ -268,9 +271,16 @@ function JournalScreen({ route }) {
     <View style={styles.entryCard}>
       <Text style={styles.cardDate}>{item.date}</Text>
       <View style={styles.entryBox}>
-        <Text style={styles.entryText}>{item.entry}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+          <Text style={styles.entryText}>{item.debitAccount} A/c  Dr.</Text>
+          <Text style={styles.entryText}>{item.amount}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 20 }}>
+          <Text style={styles.entryText}>To {item.creditAccount} A/c</Text>
+          <Text style={styles.entryText}>{item.amount}</Text>
+        </View>
       </View>
-      <Text style={styles.descText}>(Being {item.description})</Text>
+      <Text style={styles.descText}>{item.narration || `(Being ${item.description})`}</Text>
     </View>
   );
 
