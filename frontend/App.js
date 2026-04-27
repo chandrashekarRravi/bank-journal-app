@@ -10,8 +10,8 @@ import * as Print from 'expo-print';
 
 // API Configuration
 // Pointing back to your laptop via local IP
-const API_URL = 'http://10.208.82.38:3000';
-//const API_URL = 'http://192.168.0.4:3000'; // home wifi
+//const API_URL = 'http://10.208.82.38:3000';
+const API_URL = 'http://192.168.0.3:3000'; // home wifi
 const Stack = createNativeStackNavigator();
 
 // --- 1. Upload Screen ---
@@ -188,15 +188,15 @@ function JournalScreen({ route }) {
         <tr>
           <td>${index + 1}</td>
           <td style="white-space: nowrap;">${item.date}</td>
+          <td>${item.category || 'Misc'}</td>
           <td>
             <div style="margin-bottom: 4px;"><strong>${debAcc} A/c</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Dr.</div>
             <div style="padding-left: 30px; margin-bottom: 4px;">To <strong>${credAcc} A/c</strong></div>
             <div style="font-style: italic; color: #555;">[${narration}]</div>
           </td>
-          <td></td>
-          <td style="text-align: right;">${item.amount}</td>
-          <td style="text-align: right;">
-            <div style="margin-top: 24px;">${item.amount}</div>
+          <td>
+            <div style="text-align: right; margin-bottom: 4px;">${item.amount}</div>
+            <div style="text-align: left; margin-bottom: 4px;">${item.amount}</div>
           </td>
         </tr>
       `}).join('');
@@ -217,11 +217,10 @@ function JournalScreen({ route }) {
             <table>
               <tr>
                 <th style="width: 5%;">Sl No</th>
-                <th style="width: 12%;">Date</th>
+                <th style="width: 10%;">Date</th>
+                <th style="width: 15%;">Category</th>
                 <th style="width: 50%;">Particulars</th>
-                <th style="width: 5%;">L.F</th>
-                <th style="width: 14%;">Debit Rs.</th>
-                <th style="width: 14%;">Credit Rs.</th>
+                <th style="width: 20%;">Amount Rs.</th>
               </tr>
               ${htmlRows}
             </table>
