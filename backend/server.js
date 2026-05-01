@@ -19,8 +19,13 @@ if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
 
+// In-memory mapping to learn categories
+const customMappings = {};
+
 // Transaction Classification Logic
 const classifyTransaction = (description) => {
+  if (customMappings[description]) return customMappings[description];
+
   const desc = description.toUpperCase();
   if (desc.includes('SALARY')) return 'Salary';
   if (desc.includes('RENT')) return 'Rent Income';
@@ -222,6 +227,16 @@ app.post('/generate-entries', (req, res) => {
   });
 
   res.json(journalEntries);
+});
+
+// POST /update-category - Learn new category mapping
+app.post('/update-category', (req, res) => {
+  const { description, category } = req.body;
+  if (description && category) {
+    customMappings[description] = category;
+    console.log(`Learned new category mapping: "${description}" -> ${category}`);
+  }
+  res.json({ success: true });
 });
 
 app.listen(port, '0.0.0.0', () => {
