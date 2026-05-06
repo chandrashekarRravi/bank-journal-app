@@ -19,8 +19,16 @@ if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
 
-// In-memory mapping to learn categories
-const customMappings = {};
+// Persistent mapping to learn categories
+const mappingsPath = path.join(__dirname, 'mappings.json');
+let customMappings = {};
+try {
+  if (fs.existsSync(mappingsPath)) {
+    customMappings = JSON.parse(fs.readFileSync(mappingsPath, 'utf8'));
+  }
+} catch (e) {
+  console.error('Failed to load custom mappings:', e);
+}
 
 // Transaction Classification Logic
 const classifyTransaction = (description) => {
@@ -31,6 +39,7 @@ const classifyTransaction = (description) => {
   if (desc.includes('RENT')) return 'Rent Income';
   if (desc.includes('GST')) return 'GST Payable';
   if (desc.includes('TDS')) return 'TDS Payable';
+  if (desc.includes('CHEQUE')) return 'Cheque';
   if (desc.includes('LOAN') || desc.includes('EMI')) return 'Loan';
   if (desc.includes('INTEREST') || desc.includes('INT.PD')) return 'Interest';
 
@@ -121,7 +130,7 @@ const extractAccountName = (description) => {
   }
 
   const parts = desc.split('/');
-  
+
   if (parts.length >= 3) {
     if (parts[0].match(/NEFT|RTGS|IMPS|INB|INF|BULK|IFT/i)) {
       let name = parts.length > 2 ? parts[2].trim() : parts[1].trim();
@@ -159,7 +168,7 @@ app.post('/generate-entries', (req, res) => {
     let entryText = '';
 
     let accountName = extractAccountName(t.description);
-    
+
     // If extraction returned Misc or the full description, and we have a better category, use category as a fallback only if we couldn't find a good name
     if (accountName === 'Misc' || accountName === t.description || accountName === 'unknown') {
       if (t.category && t.category !== 'Misc') {
@@ -188,14 +197,14 @@ app.post('/generate-entries', (req, res) => {
       debitAccount = accountName;
       creditAccount = 'Bank';
     }
-    
+
     entryText = `${debitAccount} A/c     Dr.  ${amount}\n   To ${creditAccount} A/c      Cr.  ${amount}`;
 
     // Generate Narration
     const desc = t.description || '';
     let narration = `(Being ${desc.toLowerCase()})`;
     const descUpper = desc.toUpperCase();
-    
+
     if (/\bNEFT\b/.test(descUpper)) {
       narration = type === 'credit' ? '(Being amount received via NEFT)' : '(Being amount paid via NEFT)';
     } else if (/\bRTGS\b/.test(descUpper)) {
@@ -229,16 +238,20 @@ app.post('/generate-entries', (req, res) => {
   res.json(journalEntries);
 });
 
-// POST /update-category - Learn new category mapping
 app.post('/update-category', (req, res) => {
   const { description, category } = req.body;
   if (description && category) {
     customMappings[description] = category;
-    console.log(`Learned new category mapping: "${description}" -> ${category}`);
+    try {
+      fs.writeFileSync(mappingsPath, JSON.stringify(customMappings, null, 2), 'utf8');
+      console.log(`Learned new category mapping: "${description}" -> ${category}`);
+    } catch (e) {
+      console.error('Failed to save mappings:', e);
+    }
   }
   res.json({ success: true });
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Backend server running on http://0.0.0.0:${port}`);
+  console.log(`Backend server running on http://0.0.0.0:${port} or localhost:8081`);
 });

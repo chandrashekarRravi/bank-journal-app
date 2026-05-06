@@ -17,7 +17,7 @@ def parse_pdf(pdf_path):
                 lines = text.split('\n')
                 for line in lines:
                     line = line.strip()
-                    if not line: continue
+                    if not line: continue 
                     
                     # Ignore common header, footer, and summary lines
                     ignore_patterns = [

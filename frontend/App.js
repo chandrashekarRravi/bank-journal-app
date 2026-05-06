@@ -21,9 +21,8 @@ import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 
 // API Configuration
-// Pointing back to your laptop via local IP
-//const API_URL = 'http://10.208.82.38:3000';
-const API_URL = "http://192.168.0.7:3000"; // home wifi
+// Pointing back to your laptop via local IP for dev, or env variable for production
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.4:3000" || "http://10.41.48.38:8081";
 const Stack = createNativeStackNavigator();
 
 // --- 1. Upload Screen ---
@@ -208,8 +207,8 @@ function JournalScreen({ route }) {
   const [editingIndex, setEditingIndex] = useState(null);
 
   const CATEGORIES = [
-    "Salary", "Rent Income", "GST Payable", "TDS Payable", 
-    "Loan", "Interest", "Transfer/UPI", "Food", "Shopping", 
+    "Salary", "Rent Income", "GST Payable", "TDS Payable", "Cheque Payable",
+    "Loan", "Interest", "Transfer/UPI", "Food", "Shopping",
     "Subscription", "Cash Withdrawal", "Bank Charges", "Misc", "Other"
   ];
 
@@ -224,7 +223,7 @@ function JournalScreen({ route }) {
     const newData = [...entriesData];
     const targetEntry = newData[editingIndex];
     const originalDesc = targetEntry.description;
-    
+
     // Auto-update others with same description if they are 'Misc'
     newData.forEach((item, i) => {
       if (item.description === originalDesc && (!item.category || item.category.toLowerCase() === "misc")) {
@@ -266,46 +265,74 @@ function JournalScreen({ route }) {
 
           return `
         <tr>
-          <td>${index + 1}</td>
-          <td style="white-space: nowrap;">${item.date}</td>
-          <td>${item.category || "Misc"}</td>
+          <td style="text-align: center; color: #555;">${index + 1}</td>
+          <td style="white-space: nowrap; text-align: center; color: #333;">${item.date}</td>
+          <td style="text-align: center;"><span style="background-color: #E8F4FD; color: #4A90E2; padding: 4px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase; font-weight: bold;">${item.category || "Misc"}</span></td>
           <td>
-            <div style="margin-bottom: 4px;"><strong>${debAcc} A/c</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Dr.</div>
-            <div style="padding-left: 30px; margin-bottom: 4px;">To <strong>${credAcc} A/c</strong></div>
-            <div style="font-style: italic; color: #555;">[${narration}]</div>
+            <div style="margin-bottom: 6px; font-size: 14px;"><strong>${debAcc} A/c</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="float: right; font-weight: bold; color: #555;">Dr.</span></div>
+            <div style="padding-left: 40px; margin-bottom: 6px; font-size: 14px;">To <strong>${credAcc} A/c</strong></div>
+            <div style="font-style: italic; color: #7f8c8d; font-size: 12px; margin-top: 4px;">${narration}</div>
           </td>
           <td>
-            <div style="text-align: right; margin-bottom: 4px;">${item.amount}</div>
-            <div style="text-align: left; margin-bottom: 4px;">${item.amount}</div>
+            <div style="text-align: right; margin-bottom: 6px; font-weight: bold; color: #333;">${item.amount}</div>
+            <div style="text-align: left; margin-bottom: 6px; font-weight: bold; color: #333;">${item.amount}</div>
           </td>
         </tr>
       `;
         })
         .join("");
 
+      // Calculate Totals
+      const totalAmount = entriesData.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0).toFixed(2);
+
       let htmlContent = `
         <html>
           <head>
             <style>
-              body { font-family: 'Helvetica', sans-serif; padding: 20px; font-size: 14px; }
-              h1 { text-align: center; color: #333; margin-bottom: 30px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-              th, td { border: 1px solid #333; padding: 12px; vertical-align: top; }
-              th { background-color: #f8f9fa; text-align: center; }
+              body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px; font-size: 13px; color: #333; background-color: #fff; }
+              .header-container { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #2C3E50; padding-bottom: 20px; }
+              .logo { font-size: 24px; font-weight: 800; color: #2C3E50; letter-spacing: 1px; margin-bottom: 5px; }
+              .doc-title { font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 2px; }
+              .meta-info { text-align: right; margin-bottom: 20px; font-size: 12px; color: #7f8c8d; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+              th, td { border: 1px solid #e0e0e0; padding: 14px 12px; vertical-align: top; }
+              th { background-color: #f4f6f7; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #2c3e50; border-bottom: 2px solid #bdc3c7; }
+              tr:nth-child(even) { background-color: #fafbfc; }
+              .total-row td { background-color: #f4f6f7; font-weight: bold; font-size: 14px; border-top: 2px solid #bdc3c7; }
+              .footer { margin-top: 50px; text-align: center; font-size: 11px; color: #95a5a6; border-top: 1px solid #eee; padding-top: 20px; }
             </style>
           </head>
           <body>
-            <h1>Journal Entries</h1>
+            <div class="header-container">
+              <div class="logo">General Journal</div>
+              <div class="doc-title">Entries</div>
+            </div>
+            
+            <div class="meta-info">
+              Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
+            </div>
+
             <table>
               <tr>
-                <th style="width: 5%;">Sl No</th>
-                <th style="width: 10%;">Date</th>
-                <th style="width: 15%;">Category</th>
-                <th style="width: 50%;">Particulars</th>
-                <th style="width: 20%;">Amount Rs.</th>
+                <th style="width: 5%; text-align: center;">#</th>
+                <th style="width: 12%; text-align: center;">Date</th>
+                <th style="width: 15%; text-align: center;">Category</th>
+                <th style="width: 48%;">Particulars</th>
+                <th style="width: 20%; text-align: right;">Amount (₹)</th>
               </tr>
               ${htmlRows}
+              <tr class="total-row">
+                <td colspan="4" style="text-align: right;">GRAND TOTAL</td>
+                <td>
+                  <div style="text-align: right; margin-bottom: 6px;">₹ ${totalAmount}</div>
+                  <div style="text-align: left;">₹ ${totalAmount}</div>
+                </td>
+              </tr>
             </table>
+            
+            <div class="footer">
+              This is a computer-generated document and requires no signature.
+            </div>
           </body>
         </html>
       `;
@@ -365,8 +392,8 @@ function JournalScreen({ route }) {
         >
           <Text style={styles.cardDate}>{item.date}</Text>
           {isMisc ? (
-            <TouchableOpacity 
-              style={[styles.badge, styles.editableBadge]} 
+            <TouchableOpacity
+              style={[styles.badge, styles.editableBadge]}
               onPress={() => openCategoryModal(index)}
             >
               <Text style={{ color: "#856404", fontWeight: "600", fontSize: 12 }}>
@@ -387,7 +414,7 @@ function JournalScreen({ route }) {
               marginBottom: 5,
             }}
           >
-            <Text style={styles.entryText}>{item.debitAccount} A/c Dr.</Text>
+            <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>{item.debitAccount} A/c Dr.</Text>
             <Text style={styles.entryText}>{item.amount}</Text>
           </View>
           <View
@@ -397,7 +424,7 @@ function JournalScreen({ route }) {
               paddingLeft: 20,
             }}
           >
-            <Text style={styles.entryText}>To {item.creditAccount} A/c</Text>
+            <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>To {item.creditAccount} A/c</Text>
             <Text style={styles.entryText}>{item.amount}</Text>
           </View>
         </View>
@@ -501,41 +528,52 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F9FC",
+    backgroundColor: "#F4F7FB",
     alignItems: "center",
     justifyContent: "center",
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 10,
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#1A202C",
+    marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: "#666",
+    color: "#718096",
     marginBottom: 40,
     textAlign: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 30,
+    lineHeight: 24,
   },
   loadingContainer: {
     alignItems: "center",
+    padding: 20,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 3,
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 15,
     fontSize: 16,
-    color: "#666",
+    fontWeight: "600",
+    color: "#4A5568",
   },
   button: {
-    backgroundColor: "#4A90E2",
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 8,
-    shadowColor: "#4A90E2",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 4,
+    backgroundColor: "#2B6CB0",
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    shadowColor: "#2B6CB0",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
   },
   fullWidthButton: {
     width: "100%",
@@ -544,154 +582,177 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#FFF",
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    margin: 15,
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1A202C",
+    marginVertical: 20,
+    marginHorizontal: 20,
     alignSelf: "flex-start",
   },
   listContent: {
-    paddingHorizontal: 15,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   card: {
     backgroundColor: "#FFF",
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
     width: "100%",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.02)",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 10,
+    alignItems: "center",
   },
   cardDate: {
-    fontSize: 14,
-    color: "#888",
-    fontWeight: "500",
+    fontSize: 13,
+    color: "#A0AEC0",
+    fontWeight: "600",
+    letterSpacing: 0.5,
   },
   cardAmount: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "800",
   },
   creditText: {
-    color: "#27AE60",
+    color: "#38A169",
   },
   debitText: {
-    color: "#E74C3C",
+    color: "#E53E3E",
   },
   cardDesc: {
     fontSize: 15,
-    color: "#444",
-    marginBottom: 10,
+    color: "#2D3748",
+    marginBottom: 12,
+    lineHeight: 22,
   },
   badge: {
-    backgroundColor: "#E8F4FD",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
+    backgroundColor: "#EBF8FF",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
     alignSelf: "flex-start",
   },
   badgeText: {
-    color: "#4A90E2",
+    color: "#3182CE",
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   editableBadge: {
-    backgroundColor: "#FFF3CD",
+    backgroundColor: "#FEFCBF",
+    borderColor: "#F6E05E",
     borderWidth: 1,
-    borderColor: "#FFEEBA",
-    color: "#856404",
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    minWidth: 80,
-    textAlign: "center",
   },
   footer: {
-    padding: 15,
+    padding: 20,
     backgroundColor: "#FFF",
     borderTopWidth: 1,
-    borderTopColor: "#EEE",
+    borderTopColor: "#EDF2F7",
     width: "100%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 10,
   },
   entryCard: {
     backgroundColor: "#FFF",
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 15,
-    borderLeftWidth: 4,
-    borderLeftColor: "#4A90E2",
-    elevation: 2,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderLeftWidth: 5,
+    borderLeftColor: "#3182CE",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
     width: "100%",
   },
   entryBox: {
-    backgroundColor: "#F9FAFB",
-    padding: 12,
-    borderRadius: 6,
-    marginVertical: 10,
+    backgroundColor: "#F7FAFC",
+    padding: 16,
+    borderRadius: 8,
+    marginVertical: 12,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: "#EDF2F7",
   },
   entryText: {
-    fontFamily: "monospace",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
     fontSize: 14,
-    color: "#333",
-    lineHeight: 22,
+    color: "#2D3748",
+    lineHeight: 24,
+    fontWeight: "600",
   },
   descText: {
     fontSize: 13,
-    color: "#777",
+    color: "#718096",
     fontStyle: "italic",
+    marginTop: 4,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "#FFF",
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 15,
-    padding: 20,
-    maxHeight: "70%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: "75%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 20,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 20,
     textAlign: "center",
-    color: "#333",
+    color: "#1A202C",
   },
   modalOption: {
-    paddingVertical: 15,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#EEE",
+    borderBottomColor: "#EDF2F7",
   },
   modalOptionText: {
     fontSize: 16,
-    color: "#4A90E2",
+    color: "#3182CE",
     textAlign: "center",
+    fontWeight: "500",
   },
   modalCancel: {
-    marginTop: 15,
-    paddingVertical: 15,
-    backgroundColor: "#F0F0F0",
-    borderRadius: 8,
+    marginTop: 20,
+    paddingVertical: 16,
+    backgroundColor: "#FED7D7",
+    borderRadius: 12,
   },
   modalCancelText: {
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#E74C3C",
+    fontWeight: "700",
+    color: "#C53030",
     textAlign: "center",
   },
+  downloadButton: {
+    paddingVertical: 14,
+  }
 });
