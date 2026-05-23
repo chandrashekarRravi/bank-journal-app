@@ -34,6 +34,14 @@ try {
 const classifyTransaction = (description) => {
   if (customMappings[description]) return customMappings[description];
 
+  // Then check substring/wildcard mappings
+  for (const key of Object.keys(customMappings)) {
+    if (key.startsWith('*') && key.endsWith('*')) {
+      const keyword = key.slice(1, -1);
+      if (description.includes(keyword)) return customMappings[key];
+    }
+  }
+
   const desc = description.toUpperCase();
   if (desc.includes('SALARY')) return 'Salary';
   if (desc.includes('RENT')) return 'Rent Income';
@@ -44,9 +52,6 @@ const classifyTransaction = (description) => {
   if (desc.includes('INTEREST') || desc.includes('INT.PD')) return 'Interest';
 
   if (desc.includes('UPI') || desc.includes('PAYTM') || desc.includes('PHONEPE') || desc.includes('GPAY')) return 'Transfer/UPI';
-  if (desc.includes('SWIGGY') || desc.includes('ZOMATO') || desc.includes('FOOD')) return 'Food';
-  if (desc.includes('AMAZON') || desc.includes('FLIPKART') || desc.includes('MYNTRA')) return 'Shopping';
-  if (desc.includes('NETFLIX') || desc.includes('SPOTIFY') || desc.includes('PRIME')) return 'Subscription';
   if (desc.includes('ATM') || desc.includes('WDL') || desc.includes('CASH')) return 'Cash Withdrawal';
   if (desc.includes('FEE') || desc.includes('CHG') || desc.includes('CHARGE')) return 'Bank Charges';
 
@@ -239,12 +244,17 @@ app.post('/generate-entries', (req, res) => {
 });
 
 app.post('/update-category', (req, res) => {
-  const { description, category } = req.body;
+  const { description, category, matchType } = req.body;
   if (description && category) {
-    customMappings[description] = category;
+    if (matchType === 'all') {
+      customMappings[`*${description}*`] = category;
+      console.log(`Learned new wildcard category mapping: "*${description}*" -> ${category}`);
+    } else {
+      customMappings[description] = category;
+      console.log(`Learned new category mapping: "${description}" -> ${category}`);
+    }
     try {
       fs.writeFileSync(mappingsPath, JSON.stringify(customMappings, null, 2), 'utf8');
-      console.log(`Learned new category mapping: "${description}" -> ${category}`);
     } catch (e) {
       console.error('Failed to save mappings:', e);
     }

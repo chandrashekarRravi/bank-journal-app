@@ -22,7 +22,7 @@ import * as Print from "expo-print";
 
 // API Configuration
 // Pointing back to your laptop via local IP for dev, or env variable for production
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.4:3000" || "http://10.41.48.38:8081";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.200.38:3000";
 const Stack = createNativeStackNavigator();
 
 // --- 1. Upload Screen ---
@@ -200,55 +200,102 @@ function TransactionsScreen({ route, navigation }) {
 }
 
 // --- 3. Journal Entries Screen ---
-function JournalScreen({ route }) {
+function JournalScreen({ route, navigation }) {
   const { entries } = route.params;
   const [entriesData, setEntriesData] = useState(entries);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
 
-  const CATEGORIES = [
+  const [customCategories, setCustomCategories] = useState([
     "Salary", "Rent Income", "GST Payable", "TDS Payable", "Cheque Payable",
-    "Loan", "Interest", "Transfer/UPI", "Food", "Shopping",
-    "Subscription", "Cash Withdrawal", "Bank Charges", "Misc", "Other"
-  ];
+    "Loan", "Interest", "Transfer/UPI", "Cash Withdrawal", "Bank Charges", "Misc", "Other"
+  ]);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newCategoryText, setNewCategoryText] = useState("");
+
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: "row", marginRight: 5 }}>
+          <TouchableOpacity
+            style={{ backgroundColor: "#38A169", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, marginRight: 8 }}
+            onPress={() => navigation.navigate("Ledgers", { entries: entriesData })}
+          >
+            <Text style={{ color: "#FFF", fontWeight: "bold", fontSize: 13 }}>Create Ledgers</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ backgroundColor: "#E74C3C", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 }}
+            onPress={handleDownloadPDF}
+          >
+            <Text style={{ color: "#FFF", fontWeight: "bold", fontSize: 13 }}>Share PDF</Text>
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [navigation, entriesData]);
 
   const openCategoryModal = (index) => {
     setEditingIndex(index);
+    setIsAddingNew(false);
+    setNewCategoryText("");
     setModalVisible(true);
   };
 
-  const selectCategory = async (category) => {
+  const selectCategory = (category) => {
     if (editingIndex === null) return;
 
+    Alert.alert(
+      "Apply Category",
+      "Do you want to apply this category to all transactions from this party, or just this one?",
+      [
+        { text: "Only This", onPress: () => applyCategoryToData(category, false) },
+        { text: "Apply All", onPress: () => applyCategoryToData(category, true) },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
+  };
+
+  const applyCategoryToData = async (category, applyAll) => {
     const newData = [...entriesData];
     const targetEntry = newData[editingIndex];
     const originalDesc = targetEntry.description;
 
-    // Auto-update others with same description if they are 'Misc'
+    const isCredit = targetEntry.type === "credit" || targetEntry.type === "cr";
+    const targetAccountName = isCredit ? targetEntry.creditAccount : targetEntry.debitAccount;
+    const hasValidName = targetAccountName && targetAccountName !== "Misc" && targetAccountName !== originalDesc && targetAccountName !== category && targetAccountName !== "unknown";
+
     newData.forEach((item, i) => {
-      if (item.description === originalDesc && (!item.category || item.category.toLowerCase() === "misc")) {
-        item.category = category;
-        // Also update accounts if they were Misc
-        if (item.type === "credit" || item.type === "cr") {
-          if (item.creditAccount === "Misc") item.creditAccount = category;
-        } else {
-          if (item.debitAccount === "Misc") item.debitAccount = category;
+      let shouldApply = false;
+
+      if (i === editingIndex) {
+        shouldApply = true;
+      } else if (applyAll) {
+        if (hasValidName && item.description.includes(targetAccountName)) {
+          shouldApply = true;
+        } else if (item.description === originalDesc) {
+          shouldApply = true;
         }
+      }
+
+      if (shouldApply) {
+        item.category = category;
       }
     });
 
     setEntriesData(newData);
     setModalVisible(false);
 
-    // Call backend to learn this mapping for future
     try {
+      const mappingDesc = (applyAll && hasValidName) ? targetAccountName : originalDesc;
+      const matchType = (applyAll && hasValidName) ? "all" : "exact";
+
       await fetch(`${API_URL}/update-category`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Bypass-Tunnel-Reminder": "true"
         },
-        body: JSON.stringify({ description: originalDesc, category: category }),
+        body: JSON.stringify({ description: mappingDesc, category: category, matchType }),
       });
     } catch (e) {
       console.log("Failed to learn category mapping", e);
@@ -349,147 +396,305 @@ function JournalScreen({ route }) {
     }
   };
 
-  const handleDownloadCSV = async () => {
+  const renderItem = ({ item, index }) => {
+  const isMisc = !item.category || item.category.toLowerCase() === "misc";
+
+  return (
+    <View style={styles.entryCard}>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 8,
+        }}
+      >
+        <Text style={styles.cardDate}>{item.date}</Text>
+        <TouchableOpacity
+          style={[
+            styles.badge,
+            styles.editableBadge,
+            !isMisc && { backgroundColor: "#EBF8FF", borderColor: "#90CDF4" }
+          ]}
+          onPress={() => openCategoryModal(index)}
+        >
+          <Text style={{
+            color: isMisc ? "#856404" : "#3182CE",
+            fontWeight: "600",
+            fontSize: 12
+          }}>
+            {item.category || "Misc"} ▾
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.entryBox}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginBottom: 5,
+          }}
+        >
+          <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>{item.debitAccount} A/c Dr.</Text>
+          <Text style={styles.entryText}>{item.amount}</Text>
+        </View>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            paddingLeft: 20,
+          }}
+        >
+          <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>To {item.creditAccount} A/c</Text>
+          <Text style={styles.entryText}>{item.amount}</Text>
+        </View>
+      </View>
+      <Text style={styles.descText}>
+        {item.narration || `(Being ${item.description})`}
+      </Text>
+    </View>
+  );
+};
+
+return (
+  <View style={styles.container}>
+    <Text style={styles.headerTitle}>Journal Entries</Text>
+    <FlatList
+      data={entriesData}
+      renderItem={renderItem}
+      keyExtractor={(item, index) => index.toString()}
+      contentContainerStyle={styles.listContent}
+    />
+
+    {/* Category Dropdown Modal */}
+    <Modal
+      visible={modalVisible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setModalVisible(false)}
+    >
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Select Category</Text>
+          {isAddingNew ? (
+            <View style={{ width: '100%' }}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter new category"
+                value={newCategoryText}
+                onChangeText={setNewCategoryText}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[styles.button, styles.fullWidthButton, { marginTop: 10 }]}
+                onPress={() => {
+                  const newCat = newCategoryText.trim();
+                  if (newCat) {
+                    setCustomCategories(prev => {
+                      const newArr = [...prev];
+                      newArr.splice(newArr.length - 1, 0, newCat); // Insert before "Other"
+                      return newArr;
+                    });
+                    selectCategory(newCat);
+                    setIsAddingNew(false);
+                  }
+                }}
+              >
+                <Text style={styles.buttonText}>Add & Select</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <ScrollView>
+              {customCategories.map((cat, i) => (
+                <TouchableOpacity key={i} style={styles.modalOption} onPress={() => {
+                  if (cat === "Other") {
+                    setIsAddingNew(true);
+                  } else {
+                    selectCategory(cat);
+                  }
+                }}>
+                  <Text style={styles.modalOptionText}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+          <TouchableOpacity style={styles.modalCancel} onPress={() => {
+            if (isAddingNew) {
+              setIsAddingNew(false);
+            } else {
+              setModalVisible(false);
+            }
+          }}>
+            <Text style={styles.modalCancelText}>{isAddingNew ? "Back" : "Cancel"}</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  </View>
+  );
+}
+
+// --- 4. Ledgers Screen ---
+function LedgersScreen({ route }) {
+  const { entries } = route.params;
+
+  // Extract unique accounts
+  const accountsSet = new Set();
+  entries.forEach(e => {
+    if (e.debitAccount) accountsSet.add(e.debitAccount);
+    if (e.creditAccount) accountsSet.add(e.creditAccount);
+  });
+  const accounts = Array.from(accountsSet).sort();
+
+  const [activeTab, setActiveTab] = useState(accounts[0] || "");
+
+  const handleDownloadLedgersPDF = async () => {
     try {
-      // Create CSV format
-      let csvContent = "Date,Description,Amount,Type,Category,Entry\n";
-      entriesData.forEach((item) => {
-        const desc = `"${(item.description || "").replace(/"/g, '""')}"`;
-        const entryStr = `"${(item.entry || "").replace(/"/g, '""')}"`;
-        const cat = `"${(item.category || "").replace(/"/g, '""')}"`;
-        csvContent += `${item.date},${desc},${item.amount},${item.type},${cat},${entryStr}\n`;
+      let htmlContent = `
+        <html>
+          <head>
+            <style>
+              body { font-family: 'Segoe UI', sans-serif; padding: 40px; font-size: 13px; color: #333; }
+              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2C3E50; padding-bottom: 10px; }
+              .title { font-size: 24px; font-weight: bold; color: #2C3E50; }
+              .account-header { font-size: 18px; font-weight: bold; margin-top: 30px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;}
+              table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              th, td { border: 1px solid #e0e0e0; padding: 8px; text-align: left; }
+              th { background-color: #f4f6f7; }
+              .right { text-align: right; }
+              .center { text-align: center; }
+              .bold { font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="title">All Ledgers</div>
+              <div>Generated on: ${new Date().toLocaleDateString()}</div>
+            </div>
+      `;
+
+      accounts.forEach(acc => {
+        let rows = "";
+        let totalDr = 0;
+        let totalCr = 0;
+
+        entries.forEach(entry => {
+          const amount = parseFloat(entry.amount);
+          if (entry.debitAccount === acc) {
+            totalDr += amount;
+            rows += `<tr><td class="center">${entry.date}</td><td>${entry.creditAccount}</td><td class="right">${amount}</td><td></td></tr>`;
+          } else if (entry.creditAccount === acc) {
+            totalCr += amount;
+            rows += `<tr><td class="center">${entry.date}</td><td>${entry.debitAccount}</td><td></td><td class="right">${amount}</td></tr>`;
+          }
+        });
+
+        const bal = totalDr - totalCr;
+        const balStr = Math.abs(bal) + (bal >= 0 ? " Dr" : " Cr");
+
+        htmlContent += `
+          <div class="account-header">ACCOUNT : ${acc.toUpperCase()}</div>
+          <table>
+            <tr><th style="width:15%">Date</th><th style="width:45%">Narration</th><th style="width:20%" class="right">Dr</th><th style="width:20%" class="right">Cr</th></tr>
+            ${rows}
+            <tr><td colspan="2" class="right bold">Total</td><td class="right bold">${totalDr}</td><td class="right bold">${totalCr}</td></tr>
+            <tr><td colspan="4" class="right bold">Closing Balance : ${balStr}</td></tr>
+          </table>
+        `;
       });
 
-      const fileName = `Journal_Entries_${new Date().getTime()}.csv`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-        encoding: "utf8",
-      });
+      htmlContent += `</body></html>`;
 
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri);
+        await Sharing.shareAsync(uri);
       } else {
         Alert.alert("Sharing not available", "Cannot share on this device.");
       }
     } catch (err) {
       console.error(err);
-      Alert.alert("Error", "Failed to save or share file.");
+      Alert.alert("Error", "Failed to generate or share PDF.");
     }
   };
 
-  const renderItem = ({ item, index }) => {
-    const isMisc = !item.category || item.category.toLowerCase() === "misc";
+  const renderLedger = () => {
+    let ledgerEntries = [];
+    let totalDr = 0;
+    let totalCr = 0;
+
+    entries.forEach(entry => {
+      const amount = parseFloat(entry.amount);
+      if (entry.debitAccount === activeTab) {
+        totalDr += amount;
+        ledgerEntries.push({ date: entry.date, narration: entry.creditAccount, dr: amount, cr: '' });
+      } else if (entry.creditAccount === activeTab) {
+        totalCr += amount;
+        ledgerEntries.push({ date: entry.date, narration: entry.debitAccount, dr: '', cr: amount });
+      }
+    });
+
+    const bal = totalDr - totalCr;
+    const balStr = Math.abs(bal) + (bal >= 0 ? " Dr" : " Cr");
 
     return (
-      <View style={styles.entryCard}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
-          <Text style={styles.cardDate}>{item.date}</Text>
-          {isMisc ? (
-            <TouchableOpacity
-              style={[styles.badge, styles.editableBadge]}
-              onPress={() => openCategoryModal(index)}
-            >
-              <Text style={{ color: "#856404", fontWeight: "600", fontSize: 12 }}>
-                {item.category || "Misc"} ▾
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{item.category}</Text>
+      <View style={styles.ledgerContainer}>
+        <View style={styles.ledgerHeader}>
+          <Text style={styles.ledgerTitle}>ACCOUNT : {activeTab.toUpperCase()}</Text>
+        </View>
+        <View style={styles.ledgerTableHeader}>
+          <Text style={[styles.ledgerCell, { flex: 2, fontWeight: 'bold' }]}>Date</Text>
+          <Text style={[styles.ledgerCell, { flex: 3, fontWeight: 'bold' }]}>Narration</Text>
+          <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', fontWeight: 'bold' }]}>Dr</Text>
+          <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', fontWeight: 'bold' }]}>Cr</Text>
+        </View>
+        <FlatList
+          data={ledgerEntries}
+          keyExtractor={(item, index) => index.toString()}
+          renderItem={({ item }) => (
+            <View style={styles.ledgerRow}>
+              <Text style={[styles.ledgerCell, { flex: 2 }]}>{item.date}</Text>
+              <Text style={[styles.ledgerCell, { flex: 3 }]}>{item.narration}</Text>
+              <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right' }]}>{item.dr}</Text>
+              <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right' }]}>{item.cr}</Text>
             </View>
           )}
+        />
+        <View style={styles.ledgerFooter}>
+          <Text style={styles.ledgerTotalText}>Total Dr: {totalDr}    Total Cr: {totalCr}</Text>
+          <Text style={[styles.ledgerTotalText, { marginTop: 5 }]}>Closing Balance : {balStr}</Text>
         </View>
-        <View style={styles.entryBox}>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              marginBottom: 5,
-            }}
-          >
-            <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>{item.debitAccount} A/c Dr.</Text>
-            <Text style={styles.entryText}>{item.amount}</Text>
-          </View>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              paddingLeft: 20,
-            }}
-          >
-            <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>To {item.creditAccount} A/c</Text>
-            <Text style={styles.entryText}>{item.amount}</Text>
-          </View>
-        </View>
-        <Text style={styles.descText}>
-          {item.narration || `(Being ${item.description})`}
-        </Text>
       </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Journal Entries</Text>
-      <FlatList
-        data={entriesData}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => index.toString()}
-        contentContainerStyle={styles.listContent}
-      />
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.button, styles.downloadButton, styles.fullWidthButton]}
-          onPress={handleDownloadCSV}
-        >
-          <Text style={styles.buttonText}>Download / Share CSV</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.button,
-            styles.downloadButton,
-            styles.fullWidthButton,
-            { marginTop: 10, backgroundColor: "#E74C3C" },
-          ]}
-          onPress={handleDownloadPDF}
-        >
-          <Text style={styles.buttonText}>Download / Share PDF</Text>
-        </TouchableOpacity>
+      <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll}>
+          {accounts.map(acc => (
+            <TouchableOpacity
+              key={acc}
+              style={[styles.tab, activeTab === acc && styles.activeTab]}
+              onPress={() => setActiveTab(acc)}
+            >
+              <Text style={[styles.tabText, activeTab === acc && styles.activeTabText]}>{acc}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Category Dropdown Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Category</Text>
-            <ScrollView>
-              {CATEGORIES.map((cat, i) => (
-                <TouchableOpacity key={i} style={styles.modalOption} onPress={() => selectCategory(cat)}>
-                  <Text style={styles.modalOptionText}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+      {accounts.length > 0 && renderLedger()}
+
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={[styles.button, styles.downloadButton, styles.fullWidthButton, { backgroundColor: "#E74C3C" }]}
+          onPress={handleDownloadLedgersPDF}
+        >
+          <Text style={styles.buttonText}>Download Ledgers PDF</Text>
         </TouchableOpacity>
-      </Modal>
+      </View>
     </View>
   );
-
 }
 
 // --- Navigation ---
@@ -519,6 +724,11 @@ export default function App() {
           component={JournalScreen}
           options={{ title: "General Journal" }}
         />
+        <Stack.Screen
+          name="Ledgers"
+          component={LedgersScreen}
+          options={{ title: "Ledgers" }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -546,6 +756,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 30,
     lineHeight: 24,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    padding: 14,
+    fontSize: 16,
+    backgroundColor: "#F7FAFC",
+    marginBottom: 10,
+    width: '100%',
   },
   loadingContainer: {
     alignItems: "center",
@@ -754,5 +974,78 @@ const styles = StyleSheet.create({
   },
   downloadButton: {
     paddingVertical: 14,
+  },
+  tabsContainer: {
+    width: "100%",
+    backgroundColor: "#FFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EDF2F7",
+  },
+  tabsScroll: {
+    paddingHorizontal: 10,
+  },
+  tab: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 3,
+    borderBottomColor: "transparent",
+  },
+  activeTab: {
+    borderBottomColor: "#3182CE",
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#A0AEC0",
+  },
+  activeTabText: {
+    color: "#3182CE",
+  },
+  ledgerContainer: {
+    flex: 1,
+    width: "100%",
+    backgroundColor: "#FFF",
+    padding: 16,
+  },
+  ledgerHeader: {
+    borderBottomWidth: 2,
+    borderBottomColor: "#2C3E50",
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  ledgerTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#2C3E50",
+    textAlign: "center",
+  },
+  ledgerTableHeader: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EDF2F7",
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  ledgerRow: {
+    flexDirection: "row",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F7FAFC",
+  },
+  ledgerCell: {
+    fontSize: 13,
+    color: "#2D3748",
+  },
+  ledgerFooter: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 2,
+    borderTopColor: "#EDF2F7",
+    alignItems: "flex-end",
+  },
+  ledgerTotalText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#2D3748",
   }
 });
