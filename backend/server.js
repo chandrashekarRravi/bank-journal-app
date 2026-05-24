@@ -4,12 +4,30 @@ const multer = require('multer');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const port = 3000;
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// Root health-check endpoint
+app.get('/', (req, res) => {
+  res.send('Bank Journal API Backend is running successfully!');
+});
+
+// Apply rate limiting to API endpoints
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/upload', apiLimiter);
+app.use('/generate-entries', apiLimiter);
 
 // Set up Multer for PDF uploads
 const upload = multer({ dest: 'uploads/' });

@@ -9,9 +9,12 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.weandyou.bankjournal"
     },
-    "android": {},
+    "android": {
+      "package": "com.weandyou.bankjournal"
+    },
     "web": {},
     "plugins": [
       "expo-sharing"
