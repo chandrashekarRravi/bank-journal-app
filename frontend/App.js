@@ -11,6 +11,7 @@ import {
   TextInput,
   Modal,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -24,6 +25,44 @@ import * as Print from "expo-print";
 // Pointing back to your laptop via local IP for dev, or env variable for production
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.200.38:3000";
 const Stack = createNativeStackNavigator();
+
+// Helper to isolate HTML printing on Web (prevents printing the entire React Native App page)
+const printHTMLOnWeb = (htmlContent) => {
+  if (Platform.OS !== "web") return;
+  try {
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "absolute";
+    iframe.style.width = "0px";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document || iframe.contentDocument;
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 2000);
+    }, 500);
+  } catch (err) {
+    console.error("Iframe print error", err);
+    // Fallback: open in new window and print
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    } else {
+      Alert.alert("Error", "Pop-up blocked. Please allow pop-ups to print.");
+    }
+  }
+};
 
 // --- 1. Upload Screen ---
 function UploadScreen({ navigation }) {
@@ -206,6 +245,9 @@ function JournalScreen({ route, navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
 
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [pendingCategory, setPendingCategory] = useState("");
+
   const [customCategories, setCustomCategories] = useState([
     "Salary", "Rent Income", "GST Payable", "TDS Payable", "Cheque Payable",
     "Loan", "Interest", "Transfer/UPI", "Cash Withdrawal", "Bank Charges", "Misc", "Other"
@@ -243,16 +285,8 @@ function JournalScreen({ route, navigation }) {
 
   const selectCategory = (category) => {
     if (editingIndex === null) return;
-
-    Alert.alert(
-      "Apply Category",
-      "Do you want to apply this category to all transactions from this party, or just this one?",
-      [
-        { text: "Only This", onPress: () => applyCategoryToData(category, false) },
-        { text: "Apply All", onPress: () => applyCategoryToData(category, true) },
-        { text: "Cancel", style: "cancel" }
-      ]
-    );
+    setPendingCategory(category);
+    setConfirmModalVisible(true);
   };
 
   const applyCategoryToData = async (category, applyAll) => {
@@ -384,11 +418,15 @@ function JournalScreen({ route, navigation }) {
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri);
+      if (Platform.OS === "web") {
+        printHTMLOnWeb(htmlContent);
       } else {
-        Alert.alert("Sharing not available", "Cannot share on this device.");
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri);
+        } else {
+          Alert.alert("Sharing not available", "Cannot share on this device.");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -397,140 +435,187 @@ function JournalScreen({ route, navigation }) {
   };
 
   const renderItem = ({ item, index }) => {
-  const isMisc = !item.category || item.category.toLowerCase() === "misc";
+    const isMisc = !item.category || item.category.toLowerCase() === "misc";
 
-  return (
-    <View style={styles.entryCard}>
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        <Text style={styles.cardDate}>{item.date}</Text>
-        <TouchableOpacity
-          style={[
-            styles.badge,
-            styles.editableBadge,
-            !isMisc && { backgroundColor: "#EBF8FF", borderColor: "#90CDF4" }
-          ]}
-          onPress={() => openCategoryModal(index)}
-        >
-          <Text style={{
-            color: isMisc ? "#856404" : "#3182CE",
-            fontWeight: "600",
-            fontSize: 12
-          }}>
-            {item.category || "Misc"} ▾
-          </Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.entryBox}>
+    return (
+      <View style={styles.entryCard}>
         <View
           style={{
             flexDirection: "row",
             justifyContent: "space-between",
-            marginBottom: 5,
+            alignItems: "center",
+            marginBottom: 8,
           }}
         >
-          <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>{item.debitAccount} A/c Dr.</Text>
-          <Text style={styles.entryText}>{item.amount}</Text>
-        </View>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            paddingLeft: 20,
-          }}
-        >
-          <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>To {item.creditAccount} A/c</Text>
-          <Text style={styles.entryText}>{item.amount}</Text>
-        </View>
-      </View>
-      <Text style={styles.descText}>
-        {item.narration || `(Being ${item.description})`}
-      </Text>
-    </View>
-  );
-};
-
-return (
-  <View style={styles.container}>
-    <Text style={styles.headerTitle}>Journal Entries</Text>
-    <FlatList
-      data={entriesData}
-      renderItem={renderItem}
-      keyExtractor={(item, index) => index.toString()}
-      contentContainerStyle={styles.listContent}
-    />
-
-    {/* Category Dropdown Modal */}
-    <Modal
-      visible={modalVisible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => setModalVisible(false)}
-    >
-      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Select Category</Text>
-          {isAddingNew ? (
-            <View style={{ width: '100%' }}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter new category"
-                value={newCategoryText}
-                onChangeText={setNewCategoryText}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[styles.button, styles.fullWidthButton, { marginTop: 10 }]}
-                onPress={() => {
-                  const newCat = newCategoryText.trim();
-                  if (newCat) {
-                    setCustomCategories(prev => {
-                      const newArr = [...prev];
-                      newArr.splice(newArr.length - 1, 0, newCat); // Insert before "Other"
-                      return newArr;
-                    });
-                    selectCategory(newCat);
-                    setIsAddingNew(false);
-                  }
-                }}
-              >
-                <Text style={styles.buttonText}>Add & Select</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <ScrollView>
-              {customCategories.map((cat, i) => (
-                <TouchableOpacity key={i} style={styles.modalOption} onPress={() => {
-                  if (cat === "Other") {
-                    setIsAddingNew(true);
-                  } else {
-                    selectCategory(cat);
-                  }
-                }}>
-                  <Text style={styles.modalOptionText}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-          <TouchableOpacity style={styles.modalCancel} onPress={() => {
-            if (isAddingNew) {
-              setIsAddingNew(false);
-            } else {
-              setModalVisible(false);
-            }
-          }}>
-            <Text style={styles.modalCancelText}>{isAddingNew ? "Back" : "Cancel"}</Text>
+          <Text style={styles.cardDate}>{item.date}</Text>
+          <TouchableOpacity
+            style={[
+              styles.badge,
+              styles.editableBadge,
+              !isMisc && { backgroundColor: "#EBF8FF", borderColor: "#90CDF4" }
+            ]}
+            onPress={() => openCategoryModal(index)}
+          >
+            <Text style={{
+              color: isMisc ? "#856404" : "#3182CE",
+              fontWeight: "600",
+              fontSize: 12
+            }}>
+              {item.category || "Misc"} ▾
+            </Text>
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
-    </Modal>
-  </View>
+        <View style={styles.entryBox}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              marginBottom: 5,
+            }}
+          >
+            <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>{item.debitAccount} A/c Dr.</Text>
+            <Text style={styles.entryText}>{item.amount}</Text>
+          </View>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              paddingLeft: 20,
+            }}
+          >
+            <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>To {item.creditAccount} A/c</Text>
+            <Text style={styles.entryText}>{item.amount}</Text>
+          </View>
+        </View>
+        <Text style={styles.descText}>
+          {item.narration || `(Being ${item.description})`}
+        </Text>
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.headerTitle}>Journal Entries</Text>
+      <FlatList
+        data={entriesData}
+        renderItem={renderItem}
+        keyExtractor={(item, index) => index.toString()}
+        contentContainerStyle={styles.listContent}
+      />
+
+      {/* Category Dropdown Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Category</Text>
+            {isAddingNew ? (
+              <View style={{ width: '100%' }}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter new category"
+                  value={newCategoryText}
+                  onChangeText={setNewCategoryText}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[styles.button, styles.fullWidthButton, { marginTop: 10 }]}
+                  onPress={() => {
+                    const newCat = newCategoryText.trim();
+                    if (newCat) {
+                      setCustomCategories(prev => {
+                        const newArr = [...prev];
+                        newArr.splice(newArr.length - 1, 0, newCat); // Insert before "Other"
+                        return newArr;
+                      });
+                      selectCategory(newCat);
+                      setIsAddingNew(false);
+                    }
+                  }}
+                >
+                  <Text style={styles.buttonText}>Add & Select</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView>
+                {customCategories.map((cat, i) => (
+                  <TouchableOpacity key={i} style={styles.modalOption} onPress={() => {
+                    if (cat === "Other") {
+                      setIsAddingNew(true);
+                    } else {
+                      selectCategory(cat);
+                    }
+                  }}>
+                    <Text style={styles.modalOptionText}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+            <TouchableOpacity style={styles.modalCancel} onPress={() => {
+              if (isAddingNew) {
+                setIsAddingNew(false);
+              } else {
+                setModalVisible(false);
+              }
+            }}>
+              <Text style={styles.modalCancelText}>{isAddingNew ? "Back" : "Cancel"}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Custom Confirm Modal */}
+      <Modal
+        visible={confirmModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setConfirmModalVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setConfirmModalVisible(false)}
+        >
+          <View style={styles.confirmModalContent}>
+            <Text style={styles.confirmModalTitle}>Apply Category</Text>
+            <Text style={styles.confirmModalDesc}>
+              Do you want to apply "{pendingCategory}" to all transactions from this party, or just this one?
+            </Text>
+            <View style={styles.confirmButtonRow}>
+              <TouchableOpacity 
+                style={[styles.confirmButton, styles.confirmButtonSecondary]} 
+                onPress={() => {
+                  applyCategoryToData(pendingCategory, false);
+                  setConfirmModalVisible(false);
+                }}
+              >
+                <Text style={styles.confirmButtonTextSecondary}>Only This</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.confirmButton, styles.confirmButtonPrimary]} 
+                onPress={() => {
+                  applyCategoryToData(pendingCategory, true);
+                  setConfirmModalVisible(false);
+                }}
+              >
+                <Text style={styles.confirmButtonTextPrimary}>Apply All</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity 
+              style={styles.confirmCancel} 
+              onPress={() => setConfirmModalVisible(false)}
+            >
+              <Text style={styles.confirmCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
   );
 }
 
@@ -547,6 +632,29 @@ function LedgersScreen({ route }) {
   const accounts = Array.from(accountsSet).sort();
 
   const [activeTab, setActiveTab] = useState(accounts[0] || "");
+  const tabsRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (Platform.OS !== "web" || !tabsRef.current) return;
+
+    const element = tabsRef.current.getScrollableNode
+      ? tabsRef.current.getScrollableNode()
+      : tabsRef.current;
+
+    if (!element) return;
+
+    const handleWheel = (e) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        element.scrollLeft += e.deltaY;
+      }
+    };
+
+    element.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      element.removeEventListener("wheel", handleWheel);
+    };
+  }, [accounts]);
 
   const handleDownloadLedgersPDF = async () => {
     try {
@@ -605,11 +713,15 @@ function LedgersScreen({ route }) {
 
       htmlContent += `</body></html>`;
 
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri);
+      if (Platform.OS === "web") {
+        printHTMLOnWeb(htmlContent);
       } else {
-        Alert.alert("Sharing not available", "Cannot share on this device.");
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri);
+        } else {
+          Alert.alert("Sharing not available", "Cannot share on this device.");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -670,7 +782,12 @@ function LedgersScreen({ route }) {
   return (
     <View style={styles.container}>
       <View style={styles.tabsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll}>
+        <ScrollView 
+          ref={tabsRef}
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          style={styles.tabsScroll}
+        >
           {accounts.map(acc => (
             <TouchableOpacity
               key={acc}
@@ -794,6 +911,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 6,
+    maxWidth: 800,
   },
   fullWidthButton: {
     width: "100%",
@@ -811,11 +929,16 @@ const styles = StyleSheet.create({
     color: "#1A202C",
     marginVertical: 20,
     marginHorizontal: 20,
-    alignSelf: "flex-start",
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 800,
   },
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,
+    width: "100%",
+    maxWidth: 800,
+    alignSelf: "center",
   },
   card: {
     backgroundColor: "#FFF",
@@ -884,6 +1007,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#EDF2F7",
     width: "100%",
+    alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.03,
@@ -928,14 +1052,17 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
+    justifyContent: Platform.OS === 'web' ? 'center' : 'flex-end',
+    alignItems: Platform.OS === 'web' ? 'center' : 'stretch',
   },
   modalContent: {
     backgroundColor: "#FFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    borderRadius: Platform.OS === 'web' ? 24 : 0,
     padding: 24,
     maxHeight: "75%",
+    width: Platform.OS === 'web' ? 360 : '100%',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -10 },
     shadowOpacity: 0.1,
@@ -1004,6 +1131,8 @@ const styles = StyleSheet.create({
   ledgerContainer: {
     flex: 1,
     width: "100%",
+    maxWidth: 1000,
+    alignSelf: "center",
     backgroundColor: "#FFF",
     padding: 16,
   },
@@ -1047,5 +1176,94 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#2D3748",
-  }
+  },
+  confirmModalContent: {
+    backgroundColor: "#FFF",
+    borderRadius: 24,
+    padding: 24,
+    width: 320,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 20,
+    alignSelf: "center",
+  },
+  confirmModalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1A202C",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  confirmModalDesc: {
+    fontSize: 14,
+    color: "#4A5568",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  confirmButtonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    gap: 10,
+    marginBottom: 10,
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  confirmButtonPrimary: {
+    backgroundColor: "#3182CE",
+  },
+  confirmButtonSecondary: {
+    backgroundColor: "#E2E8F0",
+  },
+  confirmButtonTextPrimary: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  confirmButtonTextSecondary: {
+    color: "#4A5568",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  confirmCancel: {
+    paddingVertical: 10,
+    width: "100%",
+    alignItems: "center",
+  },
+  confirmCancelText: {
+    color: "#718096",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  webDesktopBackground: {
+    flex: 1,
+    backgroundColor: "#F1F5F9",
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  webPhoneFrame: {
+    width: 480,
+    height: "100%",
+    backgroundColor: "#F4F7FB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    elevation: 8,
+    overflow: "hidden",
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: "#E2E8F0",
+  },
 });
