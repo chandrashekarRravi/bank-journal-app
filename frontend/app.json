@@ -18,6 +18,11 @@
     "web": {},
     "plugins": [
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5ebcd60d-b311-49a4-a614-a788408963c3"
+      }
+    }
   }
 }

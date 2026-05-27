@@ -23,7 +23,7 @@ import * as Print from "expo-print";
 
 // API Configuration
 // Pointing back to your laptop via local IP for dev, or env variable for production
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.200.38:3000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com";
 const Stack = createNativeStackNavigator();
 
 // Helper to isolate HTML printing on Web (prevents printing the entire React Native App page)

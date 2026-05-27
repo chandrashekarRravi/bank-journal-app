@@ -25,6 +25,22 @@ try {
     console.warn('   Warning: dist/index.html not found!');
   }
 
+  // 1.6. Patch asset paths in Javascript bundles for file:// protocol
+  console.log('🔧 Step 1.6: Patching JS bundles for absolute /assets/ paths...');
+  const jsDir = path.join(__dirname, 'dist', '_expo', 'static', 'js', 'web');
+  if (fs.existsSync(jsDir)) {
+    const jsFiles = fs.readdirSync(jsDir).filter(f => f.endsWith('.js'));
+    for (const file of jsFiles) {
+      const filePath = path.join(jsDir, file);
+      let content = fs.readFileSync(filePath, 'utf8');
+      if (content.includes('"/assets/')) {
+        content = content.replace(/"\/assets\//g, '"./assets/');
+        fs.writeFileSync(filePath, content, 'utf8');
+        console.log(`   Patched /assets/ in ${file}`);
+      }
+    }
+  }
+
   // 2. Backup package.json
   console.log('💾 Step 2: Creating package.json backup...');
   fs.copyFileSync(pkgPath, pkgBackupPath);
