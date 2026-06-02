@@ -10,8 +10,14 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const port = 3000;
 
-app.use(helmet());
-app.use(cors());
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
+app.use(cors({
+  origin: '*', // Allow all origins for both local and live servers
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Bypass-Tunnel-Reminder'],
+}));
 app.use(express.json());
 
 // Root health-check endpoint
@@ -132,7 +138,8 @@ app.post('/upload', upload.single('statement'), (req, res) => {
 
 const extractAccountName = (description) => {
   if (!description) return 'Misc';
-  let desc = description.replace(/\s+/g, ' ').trim();
+  let desc = description;
+
   const descUpper = desc.toUpperCase();
 
   // Try to extract from Cheque
@@ -141,41 +148,42 @@ const extractAccountName = (description) => {
     if (chqMatch && chqMatch[2] && chqMatch[2].trim().length > 2) {
       return `Chq ${chqMatch[1]} - ${chqMatch[2].trim()}`;
     }
-    const parts = desc.split('/');
+    const parts = desc.split(/[/\\-]/).map(p => p.trim()).filter(p => p);
     if (parts.length >= 3 && parts[0].match(/CHQ|CLG/i)) {
       return `Chq ${parts[1]} - ${parts[2]}`;
     }
-    const hyphenParts = desc.split('-');
-    if (hyphenParts.length >= 2 && hyphenParts[0].match(/CHQ|CHEQUE/i)) {
-      return `Chq - ${hyphenParts[1].trim()}`;
+    if (parts.length >= 2 && parts[0].match(/CHQ|CHEQUE/i)) {
+      return `Chq - ${parts[1]}`;
     }
     return 'Cheque';
   }
 
-  const parts = desc.split('/');
+  const parts = desc.split(/[/\\-]/).map(p => p.trim()).filter(p => p);
+  
+  if (parts.length >= 2) {
+    const ignoreWords = ['UPI', 'NEFT', 'RTGS', 'IMPS', 'INB', 'INF', 'BULK', 'IFT', 'CR', 'DR', 'P2A', 'P2P', 'P2M', 'OPT', 'GST', 'ACH', 'CMS', 'TRF'];
+    
+    for (let i = 0; i < parts.length; i++) {
+      let part = parts[i];
+      let partUpper = part.toUpperCase();
+      
+      // Skip numeric IDs or long alphanumeric refs
+      if (/^[\d]+$/.test(part) || /^[A-Z0-9]{8,25}$/.test(partUpper)) continue;
+      
+      // Skip short dates like Apr
+      if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/i.test(partUpper)) continue;
 
-  if (parts.length >= 3) {
-    if (parts[0].match(/NEFT|RTGS|IMPS|INB|INF|BULK|IFT/i)) {
-      let name = parts.length > 2 ? parts[2].trim() : parts[1].trim();
-      name = name.replace(/^[0-9A-Z]{11}$/, '').trim();
-      return name || 'Misc';
-    }
-    if (parts[0].match(/UPI/i)) {
-      // UPI/CR/123456/NAME/BANK or UPI/12345/NAME
-      let name = parts.length > 3 ? parts[3].trim() : parts[2].trim();
-      name = name.replace(/^[0-9A-Z]{11}$/, '').trim();
-      return name || 'UPI Transfer';
+      if (ignoreWords.includes(partUpper)) continue;
+      
+      // Looks like a valid name if it has a few letters
+      if (/[a-zA-Z]{3,}/.test(part)) {
+        let name = part.replace(/^[0-9A-Z]{8,20}\s*/, '').trim();
+        if (name) return name;
+      }
     }
   }
 
-  const hyphenParts = desc.split('-');
-  if (hyphenParts.length >= 3 && hyphenParts[0].match(/IMPS|NEFT|UPI|IFT/i)) {
-    let name = hyphenParts[2].trim();
-    name = name.replace(/^[0-9A-Z]{11}$/, '').trim();
-    return name || 'Misc';
-  }
-
-  return description;
+  return 'unknown'; // Return unknown if no valid name found
 };
 
 // POST /generate-entries - Accept JSON, return journal entries
@@ -190,14 +198,19 @@ app.post('/generate-entries', (req, res) => {
     const amount = parseFloat(amountStr.replace(/,/g, ''));
     let entryText = '';
 
-    let accountName = extractAccountName(t.description);
+    let rawDesc = t.description || '';
+    // Strip leading date if it bled into the description
+    let cleanDesc = rawDesc.replace(/\s+/g, ' ').trim();
+    cleanDesc = cleanDesc.replace(/^(?:\d{1,2}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})\s*/, '').trim();
 
-    // If extraction returned Misc or the full description, and we have a better category, use category as a fallback only if we couldn't find a good name
-    if (accountName === 'Misc' || accountName === t.description || accountName === 'unknown') {
+    let accountName = extractAccountName(cleanDesc);
+
+    // If extraction returned Misc, unknown, or the full description, and we have a better category, use it
+    if (accountName === 'Misc' || accountName === cleanDesc || accountName === 'unknown') {
       if (t.category && t.category !== 'Misc') {
         accountName = t.category;
       } else if (accountName === 'unknown') {
-        accountName = t.description; // fallback to raw description
+        accountName = cleanDesc; // fallback to cleaned description
       }
     }
 
@@ -225,24 +238,37 @@ app.post('/generate-entries', (req, res) => {
 
     // Generate Narration
     const desc = t.description || '';
-    let narration = `(Being ${desc.toLowerCase()})`;
     const descUpper = desc.toUpperCase();
+    
+    let mode = '';
+    if (/\bNEFT\b/.test(descUpper)) mode = 'NEFT';
+    else if (/\bRTGS\b/.test(descUpper)) mode = 'RTGS';
+    else if (/\bIMPS\b/.test(descUpper)) mode = 'IMPS';
+    else if (/\bUPI\b/.test(descUpper)) mode = 'UPI';
+    else if (/\bOPT\b/.test(descUpper)) mode = 'OPT';
+    else if (/\bCHQ\b|\bCHEQUE\b/.test(descUpper)) mode = 'Cheque';
+    
+    let refMatch = desc.match(/(?:NEFT|RTGS|IMPS|UPI|OPT|GST)[^a-zA-Z0-9]*([A-Z0-9]{8,25})/i);
+    let refNum = refMatch && refMatch[1] ? refMatch[1] : '';
 
-    if (/\bNEFT\b/.test(descUpper)) {
-      narration = type === 'credit' ? '(Being amount received via NEFT)' : '(Being amount paid via NEFT)';
-    } else if (/\bRTGS\b/.test(descUpper)) {
-      narration = type === 'credit' ? '(Being amount received via RTGS)' : '(Being amount paid via RTGS)';
-    } else if (/\bUPI\b/.test(descUpper)) {
-      const personName = (accountName !== 'Misc' && accountName !== 'UPI Transfer' && accountName !== t.category) ? accountName : '';
-      if (personName) {
-        narration = type === 'credit' ? `(Being amount received via UPI from ${personName})` : `(Being amount paid via UPI to ${personName})`;
-      } else {
-        narration = type === 'credit' ? '(Being amount received via UPI)' : '(Being amount paid via UPI)';
-      }
-    } else if (/\bGST\b/.test(descUpper)) {
-      narration = '(Being GST paid)';
-    } else if (/\bCHQ\b|\bCHEQUE\b/.test(descUpper)) {
-      narration = type === 'credit' ? '(Being cheque deposited)' : '(Being cheque issued)';
+    let narration = type === 'credit' ? '(Being amount received' : '(Being amount paid';
+    
+    if (mode && mode !== 'Cheque') {
+      narration += ` via ${mode}`;
+    }
+    
+    if (refNum && mode !== 'Cheque') {
+      narration += ` ref no. ${refNum}`;
+    }
+
+    narration += ')';
+
+    if (/\bGST\b/.test(descUpper)) {
+      narration = `(Being GST paid${refNum ? ' ref no. ' + refNum : ''})`;
+    } else if (mode === 'Cheque') {
+      let chqMatch = desc.match(/(?:CHQ|CHEQUE)[^\d]*(\d+)/i);
+      let chqNum = chqMatch && chqMatch[1] ? chqMatch[1] : '';
+      narration = type === 'credit' ? `(Being cheque deposited${chqNum ? ' no. ' + chqNum : ''})` : `(Being cheque issued${chqNum ? ' no. ' + chqNum : ''})`;
     }
 
     return {
