@@ -22,9 +22,11 @@ import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 
 // API Configuration
-// Pointing back to your laptop via local IP for dev, or env variable for production
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com";
+// Pointing back to your laptop via local IP for dev, or env variable for production  || "https://bank-journal-backend.onrender.com"
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.6:3000" || "https://bank-journal-backend.onrender.com";
 const Stack = createNativeStackNavigator();
+
+import { SavingsTransactionsScreen, SavingsReportScreen } from "./modules/savings/SavingsApp";
 
 // Helper to isolate HTML printing on Web (prevents printing the entire React Native App page)
 const printHTMLOnWeb = (htmlContent) => {
@@ -67,6 +69,7 @@ const printHTMLOnWeb = (htmlContent) => {
 // --- 1. Upload Screen ---
 function UploadScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
+  const [statementType, setStatementType] = useState("business");
 
   const pickDocument = async () => {
     try {
@@ -101,7 +104,8 @@ function UploadScreen({ navigation }) {
     }
 
     try {
-      const response = await fetch(`${API_URL}/upload`, {
+      const endpoint = statementType === "savings" ? "/api/savings/process-statement" : "/upload";
+      const response = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: {
           "Bypass-Tunnel-Reminder": "true",
@@ -122,7 +126,11 @@ function UploadScreen({ navigation }) {
       }
 
       if (response.ok) {
-        navigation.navigate("Transactions", { transactions: data });
+        if (statementType === "savings") {
+          navigation.navigate("SavingsTransactions", { transactions: data.transactions, metadata: data.metadata });
+        } else {
+          navigation.navigate("Transactions", { transactions: data });
+        }
       } else {
         Alert.alert("Analysis Failed", data.error || "Something went wrong");
       }
@@ -139,10 +147,25 @@ function UploadScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Bank Statement to Journal</Text>
+      <Text style={styles.title}>Bank Statement Analyzer</Text>
       <Text style={styles.subtitle}>
         Upload your bank statement PDF to get started
       </Text>
+
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 30, backgroundColor: '#FFF', padding: 15, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginRight: 25 }} onPress={() => setStatementType('business')}>
+          <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'business' ? '#4A90E2' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+            {statementType === 'business' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#4A90E2' }} />}
+          </View>
+          <Text style={{ fontSize: 16, fontWeight: statementType === 'business' ? '600' : '400', color: statementType === 'business' ? '#2C3E50' : '#718096' }}>Business Account</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setStatementType('savings')}>
+          <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'savings' ? '#4A90E2' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+            {statementType === 'savings' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#4A90E2' }} />}
+          </View>
+          <Text style={{ fontSize: 16, fontWeight: statementType === 'savings' ? '600' : '400', color: statementType === 'savings' ? '#2C3E50' : '#718096' }}>Savings Account</Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -576,9 +599,9 @@ function JournalScreen({ route, navigation }) {
         animationType="fade"
         onRequestClose={() => setConfirmModalVisible(false)}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1} 
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
           onPress={() => setConfirmModalVisible(false)}
         >
           <View style={styles.confirmModalContent}>
@@ -587,8 +610,8 @@ function JournalScreen({ route, navigation }) {
               Do you want to apply "{pendingCategory}" to all transactions from this party, or just this one?
             </Text>
             <View style={styles.confirmButtonRow}>
-              <TouchableOpacity 
-                style={[styles.confirmButton, styles.confirmButtonSecondary]} 
+              <TouchableOpacity
+                style={[styles.confirmButton, styles.confirmButtonSecondary]}
                 onPress={() => {
                   applyCategoryToData(pendingCategory, false);
                   setConfirmModalVisible(false);
@@ -596,8 +619,8 @@ function JournalScreen({ route, navigation }) {
               >
                 <Text style={styles.confirmButtonTextSecondary}>Only This</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.confirmButton, styles.confirmButtonPrimary]} 
+              <TouchableOpacity
+                style={[styles.confirmButton, styles.confirmButtonPrimary]}
                 onPress={() => {
                   applyCategoryToData(pendingCategory, true);
                   setConfirmModalVisible(false);
@@ -606,8 +629,8 @@ function JournalScreen({ route, navigation }) {
                 <Text style={styles.confirmButtonTextPrimary}>Apply All</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity 
-              style={styles.confirmCancel} 
+            <TouchableOpacity
+              style={styles.confirmCancel}
               onPress={() => setConfirmModalVisible(false)}
             >
               <Text style={styles.confirmCancelText}>Cancel</Text>
@@ -782,10 +805,10 @@ function LedgersScreen({ route }) {
   return (
     <View style={styles.container}>
       <View style={styles.tabsContainer}>
-        <ScrollView 
+        <ScrollView
           ref={tabsRef}
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
+          horizontal
+          showsHorizontalScrollIndicator={false}
           style={styles.tabsScroll}
         >
           {accounts.map(acc => (
@@ -845,6 +868,16 @@ export default function App() {
           name="Ledgers"
           component={LedgersScreen}
           options={{ title: "Ledgers" }}
+        />
+        <Stack.Screen
+          name="SavingsTransactions"
+          component={SavingsTransactionsScreen}
+          options={{ title: "Savings Transactions" }}
+        />
+        <Stack.Screen
+          name="SavingsReport"
+          component={SavingsReportScreen}
+          options={{ title: "Savings Report" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

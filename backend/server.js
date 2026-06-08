@@ -19,6 +19,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Bypass-Tunnel-Reminder'],
 }));
 app.use(express.json());
+const savingsRouter = require('./modules/savings/routes');
+app.use('/api/savings', savingsRouter);
 
 // Root health-check endpoint
 app.get('/', (req, res) => {
