@@ -22,8 +22,8 @@ import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 
 // API Configuration
-// Pointing back to your laptop via local IP for dev, or env variable for production  || "https://bank-journal-backend.onrender.com"
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.6:3000" || "https://bank-journal-backend.onrender.com";
+// Pointing back to your laptop via local IP for dev, or env variable for production || "http://192.168.0.6:3000"   || "https://bank-journal-backend.onrender.com"
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com";
 const Stack = createNativeStackNavigator();
 
 import { SavingsTransactionsScreen, SavingsReportScreen } from "./modules/savings/SavingsApp";
@@ -69,6 +69,8 @@ const printHTMLOnWeb = (htmlContent) => {
 // --- 1. Upload Screen ---
 function UploadScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("Processing PDF...");
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [statementType, setStatementType] = useState("business");
 
   const pickDocument = async () => {
@@ -89,6 +91,23 @@ function UploadScreen({ navigation }) {
 
   const uploadPdf = async (file) => {
     setLoading(true);
+    setLoadingText("Uploading PDF securely...");
+    setLoadingProgress(0.1);
+    
+    let progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 0.95) return prev;
+        return prev + 0.05;
+      });
+      setLoadingText(prev => {
+        if (prev.includes("Uploading")) return "Reading document structure...";
+        if (prev.includes("Reading")) return "Extracting transaction data...";
+        if (prev.includes("Extracting")) return "Applying AI categorization...";
+        if (prev.includes("Applying")) return "Finalizing details...";
+        return prev;
+      });
+    }, 2500);
+
     let formData = new FormData();
 
     if (Platform.OS === "web" && file.file) {
@@ -141,6 +160,7 @@ function UploadScreen({ navigation }) {
         "Failed to communicate with the backend. Check console for details.",
       );
     } finally {
+      clearInterval(progressInterval);
       setLoading(false);
     }
   };
@@ -168,9 +188,12 @@ function UploadScreen({ navigation }) {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
+        <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', backgroundColor: '#fff', padding: 25, borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 }}>
           <ActivityIndicator size="large" color="#4A90E2" />
-          <Text style={styles.loadingText}>Processing PDF...</Text>
+          <Text style={{ marginTop: 15, fontSize: 16, fontWeight: '600', color: '#2C3E50', textAlign: 'center' }}>{loadingText}</Text>
+          <View style={{ width: '100%', height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, marginTop: 15, overflow: 'hidden' }}>
+            <View style={{ width: `${loadingProgress * 100}%`, height: '100%', backgroundColor: '#4A90E2', borderRadius: 3 }} />
+          </View>
         </View>
       ) : (
         <TouchableOpacity style={styles.button} onPress={pickDocument}>

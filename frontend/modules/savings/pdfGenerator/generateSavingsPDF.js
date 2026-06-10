@@ -3,7 +3,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { Alert, Platform } from "react-native";
 
-export const generateSavingsPDF = async (transactions, metadata = {}) => {
+export const generateSavingsPDF = async (transactions, metadata = {}, chartType = 'Pie') => {
   if (!transactions || transactions.length === 0) {
     Alert.alert("Error", "No transactions to print");
     return;
@@ -92,11 +92,39 @@ export const generateSavingsPDF = async (transactions, metadata = {}) => {
     return `<circle r="15.915494309189533" cx="21" cy="21" fill="transparent" stroke="${color}" stroke-width="31.83098861837906" stroke-dasharray="${dash} ${100 - dash}" stroke-dashoffset="${strokeDashOffset}" />`;
   });
 
-  const pieChartSvg = `
-    <svg width="200" height="200" viewBox="0 0 42 42" style="transform: rotate(-90deg); border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); background: #fff;">
-      ${svgPaths.join('\\n')}
-    </svg>
-  `;
+  let chartVisualHtml = '';
+  
+  if (chartType === 'Bar') {
+    let maxVal = Math.max(...debitArray.map(l => l.debit), 1);
+    const htmlBars = debitArray.map((l, i) => {
+      let heightPercent = (l.debit / maxVal) * 100;
+      let color = pieColors[i % pieColors.length];
+      return `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 40px; margin-right: 15px; height: 100%;">
+          <div style="font-size: 10px; color: #7f8c8d; margin-bottom: 5px;">₹${l.debit.toFixed(0)}</div>
+          <div style="width: 100%; height: ${heightPercent}%; background-color: ${color}; border-radius: 4px 4px 0 0;"></div>
+          <div style="font-size: 10px; color: #34495e; margin-top: 5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50px;">${l.name.substring(0,8)}</div>
+        </div>
+      `;
+    }).join('');
+    
+    chartVisualHtml = `
+      <div style="display: flex; flex-direction: row; align-items: flex-end; height: 200px; padding: 10px; border-bottom: 2px solid #bdc3c7; margin-bottom: 20px;">
+        ${htmlBars}
+      </div>
+    `;
+  } else {
+    chartVisualHtml = `
+      <div style="display: flex; flex-direction: row; align-items: center; justify-content: center;">
+        <svg width="200" height="200" viewBox="0 0 42 42" style="transform: rotate(-90deg); border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); background: #fff;">
+          ${svgPaths.join('\\n')}
+        </svg>
+        <div style="margin-left: 50px; display: flex; flex-direction: column;">
+          ${pieLegendHtml}
+        </div>
+      </div>
+    `;
+  }
 
   const htmlContent = `
     <html>
@@ -164,11 +192,8 @@ export const generateSavingsPDF = async (transactions, metadata = {}) => {
         <div style="page-break-before: always; margin-top: 40px;">
           <h3 style="color: #2c3e50; border-bottom: 2px solid #bdc3c7; padding-bottom: 10px;">Expense Breakdown</h3>
           
-          <div style="display: flex; flex-direction: row; align-items: center; justify-content: center; margin-top: 30px; margin-bottom: 40px;">
-            ${pieChartSvg}
-            <div style="margin-left: 50px; display: flex; flex-direction: column;">
-              ${pieLegendHtml}
-            </div>
+          <div style="margin-top: 30px; margin-bottom: 40px; display: flex; justify-content: center;">
+            ${chartVisualHtml}
           </div>
 
           <h3 style="color: #2c3e50; border-bottom: 2px solid #bdc3c7; padding-bottom: 10px;">Category Ledger Summary</h3>

@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, TextInput, ScrollView, Dimensions } from "react-native";
-import { PieChart } from "react-native-chart-kit";
+import { PieChart, BarChart } from "react-native-chart-kit";
 import { generateSavingsPDF } from "./pdfGenerator/generateSavingsPDF";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.6:3000" || "https://bank-journal-backend.onrender.com";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com";
 
-// 1. Savings Transactions Screen (equivalent to TransactionsScreen)
+// 1. Savings Transactions Screen (equivalent to TransactionsScreen) || "http://192.168.0.6:3000" 
 export function SavingsTransactionsScreen({ route, navigation }) {
   const { transactions, metadata } = route.params;
   const [txns, setTxns] = useState(transactions);
@@ -29,20 +29,32 @@ export function SavingsTransactionsScreen({ route, navigation }) {
     if (editingIndex === null) return;
 
     const newData = [...txns];
-    newData[editingIndex].category = category;
+    const targetTxn = newData[editingIndex];
+    const matchString = targetTxn.partyName || targetTxn.narration || targetTxn.description;
+
+    if (matchString) {
+      newData.forEach(t => {
+        const tMatch = t.partyName || t.narration || t.description;
+        if (tMatch === matchString) {
+          t.category = category;
+        }
+      });
+    } else {
+      targetTxn.category = category;
+    }
+
     setTxns(newData);
     setModalVisible(false);
 
     // Optionally call update-category here if we want to learn it
-    const desc = newData[editingIndex].partyName || newData[editingIndex].description;
-    if (desc) {
+    if (matchString) {
       fetch(`${API_URL}/update-category`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Bypass-Tunnel-Reminder": "true"
         },
-        body: JSON.stringify({ description: desc, category: category, matchType: "all" }),
+        body: JSON.stringify({ description: matchString, category: category, matchType: "all" }),
       }).catch(e => console.log("Failed to learn category mapping", e));
     }
   };
@@ -169,6 +181,12 @@ export function SavingsReportScreen({ route, navigation }) {
   const [currentMetadata, setCurrentMetadata] = useState(metadata || {});
   const [expandedCategory, setExpandedCategory] = useState(null);
 
+  // Chart Filters
+  const [chartFilter, setChartFilter] = useState('All Time'); // 'All Time', '1 Month', '1 Week', '1 Day', 'Custom'
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [selectedChartType, setSelectedChartType] = useState('Pie');
+
   // Category Edit State
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTxnIndex, setEditingTxnIndex] = useState(null);
@@ -189,21 +207,85 @@ export function SavingsReportScreen({ route, navigation }) {
   const selectCategory = (category) => {
     if (editingTxnIndex === null) return;
     const newData = [...localTransactions];
-    newData[editingTxnIndex].category = category;
+    const targetTxn = newData[editingTxnIndex];
+    const matchString = targetTxn.partyName || targetTxn.narration || targetTxn.description;
+
+    if (matchString) {
+      newData.forEach(t => {
+        const tMatch = t.partyName || t.narration || t.description;
+        if (tMatch === matchString) {
+          t.category = category;
+        }
+      });
+    } else {
+      targetTxn.category = category;
+    }
+
     setLocalTransactions(newData);
     setModalVisible(false);
+
+    // Optionally call update-category here if we want to learn it
+    if (matchString) {
+      fetch(`${API_URL}/update-category`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Bypass-Tunnel-Reminder": "true"
+        },
+        body: JSON.stringify({ description: matchString, category: category, matchType: "all" }),
+      }).catch(e => console.log("Failed to learn category mapping", e));
+    }
   };
 
   const handleGeneratePDF = async () => {
-    await generateSavingsPDF(localTransactions, currentMetadata);
+    await generateSavingsPDF(pieChartTransactions, currentMetadata, selectedChartType);
   };
 
-  const totalCredits = localTransactions.filter(t => t.type === 'Credit').reduce((sum, t) => sum + parseFloat(t.amount.replace(/,/g, '')), 0);
-  const totalDebits = localTransactions.filter(t => t.type === 'Debit').reduce((sum, t) => sum + parseFloat(t.amount.replace(/,/g, '')), 0);
+  const parseDateString = (dateStr) => {
+    if (!dateStr) return new Date(0);
+    const parts = dateStr.split(/[-/]/);
+    if (parts.length === 3) {
+      if (parts[2].length === 4) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+      else if (parts[0].length === 4) return new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
+    }
+    return new Date(dateStr);
+  };
+
+  let pieChartTransactions = localTransactions;
+
+  if (chartFilter !== 'All Time' && localTransactions.length > 0) {
+    const dates = localTransactions.map(t => parseDateString(t.date).getTime()).filter(t => !isNaN(t));
+    const maxDate = dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
+
+    let filterTime = 0;
+    if (chartFilter === '1 Day') filterTime = maxDate.getTime() - (1 * 24 * 60 * 60 * 1000);
+    else if (chartFilter === '1 Week') filterTime = maxDate.getTime() - (7 * 24 * 60 * 60 * 1000);
+    else if (chartFilter === '1 Month') {
+      const m = new Date(maxDate);
+      m.setMonth(m.getMonth() - 1);
+      filterTime = m.getTime();
+    }
+
+    if (chartFilter === 'Custom') {
+      const start = customStartDate ? parseDateString(customStartDate).getTime() : 0;
+      const end = customEndDate ? parseDateString(customEndDate).getTime() : Infinity;
+      pieChartTransactions = localTransactions.filter(t => {
+        const time = parseDateString(t.date).getTime();
+        return time >= start && time <= end;
+      });
+    } else {
+      pieChartTransactions = localTransactions.filter(t => {
+        return parseDateString(t.date).getTime() >= filterTime;
+      });
+    }
+  }
+
+  const totalCredits = pieChartTransactions.filter(t => t.type === 'Credit').reduce((sum, t) => sum + parseFloat(t.amount.replace(/,/g, '')), 0);
+  const totalDebits = pieChartTransactions.filter(t => t.type === 'Debit').reduce((sum, t) => sum + parseFloat(t.amount.replace(/,/g, '')), 0);
   const netCashFlow = totalCredits - totalDebits;
 
   const categoryLedger = {};
-  localTransactions.forEach(t => {
+  pieChartTransactions.forEach(t => {
     const cat = t.category || "Misc";
     if (!categoryLedger[cat]) categoryLedger[cat] = { credit: 0, debit: 0, count: 0 };
     const amt = parseFloat(t.amount.replace(/,/g, ''));
@@ -219,7 +301,8 @@ export function SavingsReportScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Savings Account Summary</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
+        <Text style={styles.headerTitle}>Savings Account Summary</Text>
 
       <View style={styles.summaryCard}>
         <Text style={{ fontSize: 13, color: "#7F8C8D", marginBottom: 5, fontWeight: 'bold' }}>ACCOUNT HOLDER NAME (APPEARS ON PDF)</Text>
@@ -246,12 +329,46 @@ export function SavingsReportScreen({ route, navigation }) {
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Transaction Count:</Text>
-          <Text style={styles.summaryValue}>{localTransactions.length}</Text>
+          <Text style={styles.summaryValue}>{pieChartTransactions.length}</Text>
         </View>
       </View>
 
+      <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50", marginHorizontal: 20, marginTop: 10, marginBottom: 10 }}>Filter Breakdown</Text>
+      
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 20, marginBottom: 15, maxHeight: 40 }}>
+        {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
+          <TouchableOpacity 
+            key={f} 
+            onPress={() => setChartFilter(f)} 
+            style={{ 
+              backgroundColor: chartFilter === f ? '#2980b9' : '#e0e0e0', 
+              paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10 
+            }}
+          >
+            <Text style={{ color: chartFilter === f ? '#fff' : '#333', fontWeight: 'bold' }}>{f}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {chartFilter === 'Custom' && (
+        <View style={{ flexDirection: 'row', paddingHorizontal: 20, marginBottom: 15, justifyContent: 'space-between' }}>
+          <TextInput 
+            style={{ flex: 1, borderWidth: 1, borderColor: '#bdc3c7', borderRadius: 6, padding: 8, marginRight: 10, backgroundColor: '#fff' }}
+            placeholder="Start DD/MM/YYYY"
+            value={customStartDate}
+            onChangeText={setCustomStartDate}
+          />
+          <TextInput 
+            style={{ flex: 1, borderWidth: 1, borderColor: '#bdc3c7', borderRadius: 6, padding: 8, backgroundColor: '#fff' }}
+            placeholder="End DD/MM/YYYY"
+            value={customEndDate}
+            onChangeText={setCustomEndDate}
+          />
+        </View>
+      )}
+
       <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50", marginHorizontal: 20, marginTop: 10, marginBottom: 10 }}>Category Ledgers</Text>
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
+      <View style={{ paddingHorizontal: 20 }}>
         {ledgerArray.map((item, index) => (
           <TouchableOpacity
             key={index}
@@ -271,7 +388,7 @@ export function SavingsReportScreen({ route, navigation }) {
 
             {expandedCategory === item.name && (
               <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: '#ecf0f1', paddingTop: 10 }}>
-                {localTransactions.filter(t => (t.category || "Misc") === item.name).map((t, idx) => (
+                {pieChartTransactions.filter(t => (t.category || "Misc") === item.name).map((t, idx) => (
                   <TouchableOpacity
                     key={idx}
                     onPress={() => openCategoryModal(t)}
@@ -297,30 +414,66 @@ export function SavingsReportScreen({ route, navigation }) {
         {/* Pie Chart Section */}
         {ledgerArray.length > 0 && (
           <View style={{ backgroundColor: "#fff", padding: 15, borderRadius: 10, marginBottom: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 }}>
-            <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e', marginBottom: 10, textAlign: 'center' }}>Expense Breakdown</Text>
-            <PieChart
-              data={ledgerArray.filter(l => l.debit > 0).map((l, i) => ({
-                name: l.name,
-                population: l.debit,
-                color: ["#e74c3c", "#f39c12", "#8e44ad", "#2980b9", "#d35400", "#c0392b", "#16a085"][i % 7],
-                legendFontColor: "#7F7F7F",
-                legendFontSize: 12
-              }))}
-              width={Dimensions.get("window").width - 70}
-              height={200}
-              chartConfig={{
-                backgroundColor: "#fff",
-                backgroundGradientFrom: "#fff",
-                backgroundGradientTo: "#fff",
-                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              }}
-              accessor={"population"}
-              backgroundColor={"transparent"}
-              paddingLeft={"15"}
-              absolute
-            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e' }}>Expense Breakdown</Text>
+              <View style={{ flexDirection: 'row', backgroundColor: '#ecf0f1', borderRadius: 20, padding: 2 }}>
+                <TouchableOpacity onPress={() => setSelectedChartType('Pie')} style={{ paddingHorizontal: 15, paddingVertical: 5, borderRadius: 18, backgroundColor: selectedChartType === 'Pie' ? '#2c3e50' : 'transparent' }}>
+                  <Text style={{ color: selectedChartType === 'Pie' ? '#fff' : '#7f8c8d', fontSize: 12, fontWeight: 'bold' }}>Pie</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setSelectedChartType('Bar')} style={{ paddingHorizontal: 15, paddingVertical: 5, borderRadius: 18, backgroundColor: selectedChartType === 'Bar' ? '#2c3e50' : 'transparent' }}>
+                  <Text style={{ color: selectedChartType === 'Bar' ? '#fff' : '#7f8c8d', fontSize: 12, fontWeight: 'bold' }}>Bar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            {selectedChartType === 'Pie' ? (
+              <PieChart
+                data={ledgerArray.filter(l => l.debit > 0).map((l, i) => ({
+                  name: l.name,
+                  population: l.debit,
+                  color: ["#e74c3c", "#f39c12", "#8e44ad", "#2980b9", "#d35400", "#c0392b", "#16a085"][i % 7],
+                  legendFontColor: "#7F7F7F",
+                  legendFontSize: 12
+                }))}
+                width={Dimensions.get("window").width - 70}
+                height={200}
+                chartConfig={{
+                  backgroundColor: "#fff",
+                  backgroundGradientFrom: "#fff",
+                  backgroundGradientTo: "#fff",
+                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                }}
+                accessor={"population"}
+                backgroundColor={"transparent"}
+                paddingLeft={"15"}
+                absolute
+              />
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <BarChart
+                  data={{
+                    labels: ledgerArray.filter(l => l.debit > 0).map(l => l.name.substring(0, 8)),
+                    datasets: [{ data: ledgerArray.filter(l => l.debit > 0).map(l => l.debit) }]
+                  }}
+                  width={Math.max(Dimensions.get("window").width - 70, ledgerArray.filter(l => l.debit > 0).length * 60)}
+                  height={220}
+                  yAxisLabel="₹"
+                  fromZero={true}
+                  chartConfig={{
+                    backgroundColor: "#ffffff",
+                    backgroundGradientFrom: "#ffffff",
+                    backgroundGradientTo: "#ffffff",
+                    decimalPlaces: 0,
+                    color: (opacity = 1) => `rgba(41, 128, 185, ${opacity})`,
+                    labelColor: (opacity = 1) => `rgba(44, 62, 80, ${opacity})`,
+                  }}
+                  verticalLabelRotation={30}
+                  style={{ borderRadius: 10, paddingTop: 20 }}
+                />
+              </ScrollView>
+            )}
           </View>
         )}
+      </View>
       </ScrollView>
 
       {/* Category Modal */}
