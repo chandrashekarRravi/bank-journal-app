@@ -3,6 +3,9 @@ import json
 import fitz
 import re
 
+# Force UTF-8 encoding for standard output on Windows
+sys.stdout.reconfigure(encoding='utf-8')
+
 def extract_metadata(pdf_path):
     metadata = {
         "holderName": "User (Auto-Extracted)",

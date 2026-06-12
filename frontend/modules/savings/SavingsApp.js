@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, Te
 import { PieChart, BarChart } from "react-native-chart-kit";
 import { generateSavingsPDF } from "./pdfGenerator/generateSavingsPDF";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://192.168.0.8:3000";
 
 // 1. Savings Transactions Screen (equivalent to TransactionsScreen) || "http://192.168.0.6:3000" 
 export function SavingsTransactionsScreen({ route, navigation }) {
@@ -304,176 +304,176 @@ export function SavingsReportScreen({ route, navigation }) {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
         <Text style={styles.headerTitle}>Savings Account Summary</Text>
 
-      <View style={styles.summaryCard}>
-        <Text style={{ fontSize: 13, color: "#7F8C8D", marginBottom: 5, fontWeight: 'bold' }}>ACCOUNT HOLDER NAME (APPEARS ON PDF)</Text>
-        <TextInput
-          style={{
-            borderWidth: 1, borderColor: '#bdc3c7', borderRadius: 6, padding: 10, fontSize: 16, backgroundColor: '#fff', color: '#2c3e50', marginBottom: 15
-          }}
-          value={currentMetadata.holderName || ''}
-          onChangeText={(text) => setCurrentMetadata({ ...currentMetadata, holderName: text })}
-          placeholder="Enter Name"
-        />
-
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Credits:</Text>
-          <Text style={styles.creditText}>₹{totalCredits.toFixed(2)}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Debits:</Text>
-          <Text style={styles.debitText}>₹{totalDebits.toFixed(2)}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Net Cash Flow:</Text>
-          <Text style={{ ...styles.summaryValue, color: netCashFlow >= 0 ? '#27ae60' : '#e74c3c' }}>₹{netCashFlow.toFixed(2)}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Transaction Count:</Text>
-          <Text style={styles.summaryValue}>{pieChartTransactions.length}</Text>
-        </View>
-      </View>
-
-      <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50", marginHorizontal: 20, marginTop: 10, marginBottom: 10 }}>Filter Breakdown</Text>
-      
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 20, marginBottom: 15, maxHeight: 40 }}>
-        {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
-          <TouchableOpacity 
-            key={f} 
-            onPress={() => setChartFilter(f)} 
-            style={{ 
-              backgroundColor: chartFilter === f ? '#2980b9' : '#e0e0e0', 
-              paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10 
+        <View style={styles.summaryCard}>
+          <Text style={{ fontSize: 13, color: "#7F8C8D", marginBottom: 5, fontWeight: 'bold' }}>ACCOUNT HOLDER NAME (APPEARS ON PDF)</Text>
+          <TextInput
+            style={{
+              borderWidth: 1, borderColor: '#bdc3c7', borderRadius: 6, padding: 10, fontSize: 16, backgroundColor: '#fff', color: '#2c3e50', marginBottom: 15
             }}
-          >
-            <Text style={{ color: chartFilter === f ? '#fff' : '#333', fontWeight: 'bold' }}>{f}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+            value={currentMetadata.holderName || ''}
+            onChangeText={(text) => setCurrentMetadata({ ...currentMetadata, holderName: text })}
+            placeholder="Enter Name"
+          />
 
-      {chartFilter === 'Custom' && (
-        <View style={{ flexDirection: 'row', paddingHorizontal: 20, marginBottom: 15, justifyContent: 'space-between' }}>
-          <TextInput 
-            style={{ flex: 1, borderWidth: 1, borderColor: '#bdc3c7', borderRadius: 6, padding: 8, marginRight: 10, backgroundColor: '#fff' }}
-            placeholder="Start DD/MM/YYYY"
-            value={customStartDate}
-            onChangeText={setCustomStartDate}
-          />
-          <TextInput 
-            style={{ flex: 1, borderWidth: 1, borderColor: '#bdc3c7', borderRadius: 6, padding: 8, backgroundColor: '#fff' }}
-            placeholder="End DD/MM/YYYY"
-            value={customEndDate}
-            onChangeText={setCustomEndDate}
-          />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Credits:</Text>
+            <Text style={styles.creditText}>₹{totalCredits.toFixed(2)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Debits:</Text>
+            <Text style={styles.debitText}>₹{totalDebits.toFixed(2)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Net Cash Flow:</Text>
+            <Text style={{ ...styles.summaryValue, color: netCashFlow >= 0 ? '#27ae60' : '#e74c3c' }}>₹{netCashFlow.toFixed(2)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Transaction Count:</Text>
+            <Text style={styles.summaryValue}>{pieChartTransactions.length}</Text>
+          </View>
         </View>
-      )}
 
-      <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50", marginHorizontal: 20, marginTop: 10, marginBottom: 10 }}>Category Ledgers</Text>
-      <View style={{ paddingHorizontal: 20 }}>
-        {ledgerArray.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            activeOpacity={0.7}
-            onPress={() => setExpandedCategory(expandedCategory === item.name ? null : item.name)}
-            style={{ backgroundColor: "#fff", padding: 15, borderRadius: 10, marginBottom: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 }}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e' }}>{item.name}</Text>
-              <Text style={{ fontSize: 14, color: '#7f8c8d' }}>{item.count} txns</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
-              <Text style={{ fontSize: 14, color: '#27ae60' }}>In: ₹{item.credit.toFixed(2)}</Text>
-              <Text style={{ fontSize: 14, color: '#e74c3c' }}>Out: ₹{item.debit.toFixed(2)}</Text>
-              <Text style={{ fontSize: 14, fontWeight: 'bold', color: item.netFlow >= 0 ? '#27ae60' : '#e74c3c' }}>Net: ₹{item.netFlow.toFixed(2)}</Text>
-            </View>
+        <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50", marginHorizontal: 20, marginTop: 10, marginBottom: 10 }}>Filter Breakdown</Text>
 
-            {expandedCategory === item.name && (
-              <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: '#ecf0f1', paddingTop: 10 }}>
-                {pieChartTransactions.filter(t => (t.category || "Misc") === item.name).map((t, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    onPress={() => openCategoryModal(t)}
-                    style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#f9f9f9', alignItems: 'center' }}
-                  >
-                    <View style={{ flex: 1, paddingRight: 10 }}>
-                      <Text style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>{t.date}</Text>
-                      <Text style={{ fontSize: 13, color: '#2c3e50' }}>{t.narration}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 13, fontWeight: 'bold', color: t.type === 'Credit' ? '#27ae60' : '#e74c3c', marginRight: 10 }}>
-                        {t.type === 'Credit' ? '+' : '-'}₹{t.amount}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#3498db', fontWeight: 'bold' }}>EDIT</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 20, marginBottom: 15, maxHeight: 40 }}>
+          {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
+            <TouchableOpacity
+              key={f}
+              onPress={() => setChartFilter(f)}
+              style={{
+                backgroundColor: chartFilter === f ? '#2980b9' : '#e0e0e0',
+                paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10
+              }}
+            >
+              <Text style={{ color: chartFilter === f ? '#fff' : '#333', fontWeight: 'bold' }}>{f}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
-        {/* Pie Chart Section */}
-        {ledgerArray.length > 0 && (
-          <View style={{ backgroundColor: "#fff", padding: 15, borderRadius: 10, marginBottom: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e' }}>Expense Breakdown</Text>
-              <View style={{ flexDirection: 'row', backgroundColor: '#ecf0f1', borderRadius: 20, padding: 2 }}>
-                <TouchableOpacity onPress={() => setSelectedChartType('Pie')} style={{ paddingHorizontal: 15, paddingVertical: 5, borderRadius: 18, backgroundColor: selectedChartType === 'Pie' ? '#2c3e50' : 'transparent' }}>
-                  <Text style={{ color: selectedChartType === 'Pie' ? '#fff' : '#7f8c8d', fontSize: 12, fontWeight: 'bold' }}>Pie</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setSelectedChartType('Bar')} style={{ paddingHorizontal: 15, paddingVertical: 5, borderRadius: 18, backgroundColor: selectedChartType === 'Bar' ? '#2c3e50' : 'transparent' }}>
-                  <Text style={{ color: selectedChartType === 'Bar' ? '#fff' : '#7f8c8d', fontSize: 12, fontWeight: 'bold' }}>Bar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            {selectedChartType === 'Pie' ? (
-              <PieChart
-                data={ledgerArray.filter(l => l.debit > 0).map((l, i) => ({
-                  name: l.name,
-                  population: l.debit,
-                  color: ["#e74c3c", "#f39c12", "#8e44ad", "#2980b9", "#d35400", "#c0392b", "#16a085"][i % 7],
-                  legendFontColor: "#7F7F7F",
-                  legendFontSize: 12
-                }))}
-                width={Dimensions.get("window").width - 70}
-                height={200}
-                chartConfig={{
-                  backgroundColor: "#fff",
-                  backgroundGradientFrom: "#fff",
-                  backgroundGradientTo: "#fff",
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                }}
-                accessor={"population"}
-                backgroundColor={"transparent"}
-                paddingLeft={"15"}
-                absolute
-              />
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <BarChart
-                  data={{
-                    labels: ledgerArray.filter(l => l.debit > 0).map(l => l.name.substring(0, 8)),
-                    datasets: [{ data: ledgerArray.filter(l => l.debit > 0).map(l => l.debit) }]
-                  }}
-                  width={Math.max(Dimensions.get("window").width - 70, ledgerArray.filter(l => l.debit > 0).length * 60)}
-                  height={220}
-                  yAxisLabel="₹"
-                  fromZero={true}
-                  chartConfig={{
-                    backgroundColor: "#ffffff",
-                    backgroundGradientFrom: "#ffffff",
-                    backgroundGradientTo: "#ffffff",
-                    decimalPlaces: 0,
-                    color: (opacity = 1) => `rgba(41, 128, 185, ${opacity})`,
-                    labelColor: (opacity = 1) => `rgba(44, 62, 80, ${opacity})`,
-                  }}
-                  verticalLabelRotation={30}
-                  style={{ borderRadius: 10, paddingTop: 20 }}
-                />
-              </ScrollView>
-            )}
+        {chartFilter === 'Custom' && (
+          <View style={{ flexDirection: 'row', paddingHorizontal: 20, marginBottom: 15, justifyContent: 'space-between' }}>
+            <TextInput
+              style={{ flex: 1, borderWidth: 1, borderColor: '#bdc3c7', borderRadius: 6, padding: 8, marginRight: 10, backgroundColor: '#fff' }}
+              placeholder="Start DD/MM/YYYY"
+              value={customStartDate}
+              onChangeText={setCustomStartDate}
+            />
+            <TextInput
+              style={{ flex: 1, borderWidth: 1, borderColor: '#bdc3c7', borderRadius: 6, padding: 8, backgroundColor: '#fff' }}
+              placeholder="End DD/MM/YYYY"
+              value={customEndDate}
+              onChangeText={setCustomEndDate}
+            />
           </View>
         )}
-      </View>
+
+        <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50", marginHorizontal: 20, marginTop: 10, marginBottom: 10 }}>Category Ledgers</Text>
+        <View style={{ paddingHorizontal: 20 }}>
+          {ledgerArray.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              activeOpacity={0.7}
+              onPress={() => setExpandedCategory(expandedCategory === item.name ? null : item.name)}
+              style={{ backgroundColor: "#fff", padding: 15, borderRadius: 10, marginBottom: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 }}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e' }}>{item.name}</Text>
+                <Text style={{ fontSize: 14, color: '#7f8c8d' }}>{item.count} txns</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
+                <Text style={{ fontSize: 14, color: '#27ae60' }}>In: ₹{item.credit.toFixed(2)}</Text>
+                <Text style={{ fontSize: 14, color: '#e74c3c' }}>Out: ₹{item.debit.toFixed(2)}</Text>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', color: item.netFlow >= 0 ? '#27ae60' : '#e74c3c' }}>Net: ₹{item.netFlow.toFixed(2)}</Text>
+              </View>
+
+              {expandedCategory === item.name && (
+                <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: '#ecf0f1', paddingTop: 10 }}>
+                  {pieChartTransactions.filter(t => (t.category || "Misc") === item.name).map((t, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => openCategoryModal(t)}
+                      style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#f9f9f9', alignItems: 'center' }}
+                    >
+                      <View style={{ flex: 1, paddingRight: 10 }}>
+                        <Text style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>{t.date}</Text>
+                        <Text style={{ fontSize: 13, color: '#2c3e50' }}>{t.narration}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: t.type === 'Credit' ? '#27ae60' : '#e74c3c', marginRight: 10 }}>
+                          {t.type === 'Credit' ? '+' : '-'}₹{t.amount}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#3498db', fontWeight: 'bold' }}>EDIT</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+
+          {/* Pie Chart Section */}
+          {ledgerArray.length > 0 && (
+            <View style={{ backgroundColor: "#fff", padding: 15, borderRadius: 10, marginBottom: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e' }}>Expense Breakdown</Text>
+                <View style={{ flexDirection: 'row', backgroundColor: '#ecf0f1', borderRadius: 20, padding: 2 }}>
+                  <TouchableOpacity onPress={() => setSelectedChartType('Pie')} style={{ paddingHorizontal: 15, paddingVertical: 5, borderRadius: 18, backgroundColor: selectedChartType === 'Pie' ? '#2c3e50' : 'transparent' }}>
+                    <Text style={{ color: selectedChartType === 'Pie' ? '#fff' : '#7f8c8d', fontSize: 12, fontWeight: 'bold' }}>Pie</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSelectedChartType('Bar')} style={{ paddingHorizontal: 15, paddingVertical: 5, borderRadius: 18, backgroundColor: selectedChartType === 'Bar' ? '#2c3e50' : 'transparent' }}>
+                    <Text style={{ color: selectedChartType === 'Bar' ? '#fff' : '#7f8c8d', fontSize: 12, fontWeight: 'bold' }}>Bar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {selectedChartType === 'Pie' ? (
+                <PieChart
+                  data={ledgerArray.filter(l => l.debit > 0).map((l, i) => ({
+                    name: l.name,
+                    population: l.debit,
+                    color: ["#e74c3c", "#f39c12", "#8e44ad", "#2980b9", "#d35400", "#c0392b", "#16a085"][i % 7],
+                    legendFontColor: "#7F7F7F",
+                    legendFontSize: 12
+                  }))}
+                  width={Dimensions.get("window").width - 70}
+                  height={200}
+                  chartConfig={{
+                    backgroundColor: "#fff",
+                    backgroundGradientFrom: "#fff",
+                    backgroundGradientTo: "#fff",
+                    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  }}
+                  accessor={"population"}
+                  backgroundColor={"transparent"}
+                  paddingLeft={"15"}
+                  absolute
+                />
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <BarChart
+                    data={{
+                      labels: ledgerArray.filter(l => l.debit > 0).map(l => l.name.substring(0, 8)),
+                      datasets: [{ data: ledgerArray.filter(l => l.debit > 0).map(l => l.debit) }]
+                    }}
+                    width={Math.max(Dimensions.get("window").width - 70, ledgerArray.filter(l => l.debit > 0).length * 60)}
+                    height={220}
+                    yAxisLabel="₹"
+                    fromZero={true}
+                    chartConfig={{
+                      backgroundColor: "#ffffff",
+                      backgroundGradientFrom: "#ffffff",
+                      backgroundGradientTo: "#ffffff",
+                      decimalPlaces: 0,
+                      color: (opacity = 1) => `rgba(41, 128, 185, ${opacity})`,
+                      labelColor: (opacity = 1) => `rgba(44, 62, 80, ${opacity})`,
+                    }}
+                    verticalLabelRotation={30}
+                    style={{ borderRadius: 10, paddingTop: 20 }}
+                  />
+                </ScrollView>
+              )}
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       {/* Category Modal */}

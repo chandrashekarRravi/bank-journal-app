@@ -23,7 +23,7 @@ import * as Print from "expo-print";
 
 // API Configuration
 // Pointing back to your laptop via local IP for dev, or env variable for production || "http://192.168.0.6:3000"   || "https://bank-journal-backend.onrender.com"
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://192.168.0.8:3000";
 const Stack = createNativeStackNavigator();
 
 import { SavingsTransactionsScreen, SavingsReportScreen } from "./modules/savings/SavingsApp";
@@ -70,6 +70,7 @@ const printHTMLOnWeb = (htmlContent) => {
 function UploadScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Processing PDF...");
+  const [uploadError, setUploadError] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [statementType, setStatementType] = useState("business");
 
@@ -90,10 +91,11 @@ function UploadScreen({ navigation }) {
   };
 
   const uploadPdf = async (file) => {
+    setUploadError(null);
     setLoading(true);
     setLoadingText("Uploading PDF securely...");
     setLoadingProgress(0.1);
-    
+
     let progressInterval = setInterval(() => {
       setLoadingProgress(prev => {
         if (prev >= 0.95) return prev;
@@ -102,7 +104,7 @@ function UploadScreen({ navigation }) {
       setLoadingText(prev => {
         if (prev.includes("Uploading")) return "Reading document structure...";
         if (prev.includes("Reading")) return "Extracting transaction data...";
-        if (prev.includes("Extracting")) return "Applying AI categorization...";
+        if (prev.includes("Extracting")) return "Applying  categorization...";
         if (prev.includes("Applying")) return "Finalizing details...";
         return prev;
       });
@@ -151,14 +153,11 @@ function UploadScreen({ navigation }) {
           navigation.navigate("Transactions", { transactions: data });
         }
       } else {
-        Alert.alert("Analysis Failed", data.error || "Something went wrong");
+        setUploadError(data.error || "Analysis Failed. Please check the PDF.");
       }
     } catch (error) {
       console.error(error);
-      Alert.alert(
-        "Network/Server Error",
-        "Failed to communicate with the backend. Check console for details.",
-      );
+      setUploadError("Network Error: Failed to communicate with the backend server.");
     } finally {
       clearInterval(progressInterval);
       setLoading(false);
@@ -186,6 +185,13 @@ function UploadScreen({ navigation }) {
           <Text style={{ fontSize: 16, fontWeight: statementType === 'savings' ? '600' : '400', color: statementType === 'savings' ? '#2C3E50' : '#718096' }}>Savings Account</Text>
         </TouchableOpacity>
       </View>
+
+      {uploadError && (
+        <View style={{ backgroundColor: '#fdeded', padding: 15, borderRadius: 8, marginHorizontal: 20, marginBottom: 20, borderWidth: 1, borderColor: '#f5c6cb' }}>
+          <Text style={{ color: '#721c24', fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>Upload Failed</Text>
+          <Text style={{ color: '#721c24', fontSize: 14 }}>{uploadError}</Text>
+        </View>
+      )}
 
       {loading ? (
         <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', backgroundColor: '#fff', padding: 25, borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 }}>
