@@ -1,6 +1,6 @@
 import sys
 import json
-import pdfplumber
+import fitz
 import re
 
 def parse_pdf(pdf_path):
@@ -8,93 +8,96 @@ def parse_pdf(pdf_path):
     current_trans = None
     
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            full_text = ""
-            for page in pdf.pages:
-                text = page.extract_text()
-                if not text:
-                    continue
+        doc = fitz.open(pdf_path)
+        
+        if doc.needs_pass:
+            print(json.dumps({"error": "Password protected PDF. Please remove the password and try again."}))
+            return
+            
+        full_text = ""
+        for page in doc:
+            text = page.get_text()
+            if not text:
+                continue
+            full_text += text
+            
+            lines = text.split('\n')
+            for line in lines:
+                line = line.strip()
+                if not line: continue 
+                    
+                # Ignore common header, footer, and summary lines
+                ignore_patterns = [
+                    r'(?i)registered\s+office',
+                    r'(?i)page\s+\d+\s+of\s+\d+',
+                    r'(?i)statement\s+of\s+account',
+                    r'(?i)customer\s+id',
+                    r'(?i)account\s+no',
+                    r'(?i)statement\s+period',
+                    r'(?i)opening\s+balance',
+                    r'(?i)total\s+debit',
+                    r'(?i)total\s+credit',
+                    r'(?i)closing\s+balance',
+                    r'(?i)always\s+you\s+first', # IDFC tag
+                    r'(?i)branch\s+name',
+                    r'(?i)ifsc\s+code',
+                ]
                 
-                lines = text.split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if not line: continue 
-                    
-                    # Ignore common header, footer, and summary lines
-                    ignore_patterns = [
-                        r'(?i)registered\s+office',
-                        r'(?i)page\s+\d+\s+of\s+\d+',
-                        r'(?i)statement\s+of\s+account',
-                        r'(?i)customer\s+id',
-                        r'(?i)account\s+no',
-                        r'(?i)statement\s+period',
-                        r'(?i)opening\s+balance',
-                        r'(?i)total\s+debit',
-                        r'(?i)total\s+credit',
-                        r'(?i)closing\s+balance',
-                        r'(?i)always\s+you\s+first', # IDFC tag
-                        r'(?i)branch\s+name',
-                        r'(?i)ifsc\s+code',
-                    ]
-                    
-                    if any(re.search(pattern, line) for pattern in ignore_patterns):
-                        continue
+                if any(re.search(pattern, line) for pattern in ignore_patterns):
+                    continue
 
-                    # Check if line starts with a date (Transaction Start)
-                    # Broadened date matching: e.g., 12/04/2023, 12-Jan-2023, 12 Jan 2023, 2023-04-12
-                    # Support optional leading serial numbers like '1  12/04/2023'
-                    # Detect transaction start
-                    # A transaction starts EITHER with a date, OR with a known transaction code like UPI/
-                    date_match = re.search(r'^(?:\d+\s+)?(\d{1,4}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})', line)
-                    txn_code_match = re.match(r'^(UPI|NEFT|RTGS|IMPS|ACH|CMS|TRF|CHQ)', line, re.IGNORECASE)
+                # Check if line starts with a date (Transaction Start)
+                # Fix 3: Improved date matching for DD/MM/YYYY, DD-MM-YYYY, DD/MM/YY, DD Mon YYYY, DD-Mon-YYYY
+                date_match = re.search(r'^(?:\d+\s+)?(\d{1,2}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})', line)
+                txn_code_match = re.match(r'^(UPI|NEFT|RTGS|IMPS|ACH|CMS|TRF|CHQ)', line, re.IGNORECASE)
+                
+                if txn_code_match and (current_trans is None or current_trans.get("has_amounts", False)):
+                    # Starts with a txn code, and previous transaction is done (or this is the first)
+                    if current_trans:
+                        transactions.append(current_trans)
+                    current_trans = {
+                        "date": "Unknown",
+                        "description_parts": [line],
+                        "type": "unknown",
+                        "amount": "0.00",
+                        "amount_val": 0.0,
+                        "balance_val": None,
+                        "has_amounts": False
+                    }
+                elif date_match:
+                    date = date_match.group(1).strip()
+                    rest = line[date_match.end():].strip()
                     
-                    if txn_code_match and (current_trans is None or current_trans.get("has_amounts", False)):
-                        # Starts with a txn code, and previous transaction is done (or this is the first)
+                    if current_trans is None or current_trans.get("has_amounts", False):
+                        # Start new transaction
                         if current_trans:
                             transactions.append(current_trans)
                         current_trans = {
-                            "date": "Unknown",
-                            "description_parts": [line],
+                            "date": date,
+                            "description_parts": [rest] if rest else [],
                             "type": "unknown",
                             "amount": "0.00",
                             "amount_val": 0.0,
                             "balance_val": None,
                             "has_amounts": False
                         }
-                    elif date_match:
-                        date = date_match.group(1).strip()
-                        rest = line[date_match.end():].strip()
-                        
-                        if current_trans is None or current_trans.get("has_amounts", False):
-                            # Start new transaction
-                            if current_trans:
-                                transactions.append(current_trans)
-                            current_trans = {
-                                "date": date,
-                                "description_parts": [rest] if rest else [],
-                                "type": "unknown",
-                                "amount": "0.00",
-                                "amount_val": 0.0,
-                                "balance_val": None,
-                                "has_amounts": False
-                            }
-                        else:
-                            # We are inside a transaction that started with a txn code (like UPI/)
-                            # We just found its date!
-                            if current_trans["date"] == "Unknown":
-                                current_trans["date"] = date
-                            if rest:
-                                current_trans["description_parts"].append(rest)
-                    elif current_trans:
-                        current_trans["description_parts"].append(line)
-                        
-                    # Check if this line has amounts to mark the transaction as "having amounts"
-                    if current_trans and re.search(r'[-]?\d[\d,]*\.\d{2}', line):
-                        # It has amounts. Next date or txn code will start a new transaction.
-                        current_trans["has_amounts"] = True
+                    else:
+                        # We are inside a transaction that started with a txn code (like UPI/)
+                        # We just found its date!
+                        if current_trans["date"] == "Unknown":
+                            current_trans["date"] = date
+                        if rest:
+                            current_trans["description_parts"].append(rest)
+                elif current_trans:
+                    current_trans["description_parts"].append(line)
+                    
+                # Check if this line has amounts to mark the transaction as "having amounts"
+                if current_trans and re.search(r'[-]?\d[\d,]*\.\d{2}', line):
+                    # It has amounts. Next date or txn code will start a new transaction.
+                    current_trans["has_amounts"] = True
 
-            if current_trans:
-                transactions.append(current_trans)
+        if current_trans:
+            transactions.append(current_trans)
 
         # --- POST-PROCESSING: Extract amounts from accumulated text ---
         for trans in transactions:
@@ -122,17 +125,15 @@ def parse_pdf(pdf_path):
                     trans["amount_val"] = float(amt_str.replace(',', '').replace('-', ''))
                     trans["balance_val"] = float(amt_str.replace(',', '').replace('-', ''))
                 
-                # Check indicator for type ONLY on the transaction amount!
-                if "CR" in (ind or "").upper():
+                # Fix 5: Ensure type detection checks at boundaries to prevent false DR/CR inside descriptions.
+                if re.search(r'\bCR\b', ind or "", re.IGNORECASE):
                     trans["type"] = "credit"
-                elif "DR" in (ind or "").upper():
+                elif re.search(r'\bDR\b', ind or "", re.IGNORECASE):
                     trans["type"] = "debit"
                 elif trans["type"] == "unknown":
-                    # Also look at the description text itself for DR/CR near the end
-                    # BUT wait, Union bank puts DR in the particulars! 'UPIAR/.../DR/...'
-                    if "/DR/" in full_block.upper() or " DR " in full_block.upper():
+                    if re.search(r'\bDR\b', full_block, re.IGNORECASE) or "/DR/" in full_block.upper():
                         trans["type"] = "debit"
-                    elif "/CR/" in full_block.upper() or " CR " in full_block.upper():
+                    elif re.search(r'\bCR\b', full_block, re.IGNORECASE) or "/CR/" in full_block.upper():
                         trans["type"] = "credit"
 
             # Clean up the description by joining parts and removing the money strings
@@ -148,13 +149,15 @@ def parse_pdf(pdf_path):
         for i in range(1, len(transactions)):
             if transactions[i]["type"] == "unknown" and transactions[i]["balance_val"] is not None and transactions[i-1]["balance_val"] is not None:
                 diff = transactions[i]["balance_val"] - transactions[i-1]["balance_val"]
-                if abs(diff - transactions[i]["amount_val"]) < 0.01:
+                if abs(diff - transactions[i].get("amount_val", 0)) < 0.01:
                     transactions[i]["type"] = "credit"
-                elif abs(diff + transactions[i]["amount_val"]) < 0.01:
+                elif abs(diff + transactions[i].get("amount_val", 0)) < 0.01:
                     transactions[i]["type"] = "debit"
-                else:
-                    # Fallback check - if absolute value of amount is present
-                    transactions[i]["type"] = "debit" # Defaulting for unknown un-matched
+                # Fix 6: Do not automatically assume debit if unknown without balance proof
+                # We leave it as 'unknown' instead of defaulting to debit
+
+        # Fix 8: Properly close the document to free memory
+        doc.close()
 
         # Remove numeric helper for clean JSON output
         # If we couldn't find any text, it's likely a scanned image PDF
@@ -163,17 +166,17 @@ def parse_pdf(pdf_path):
             return
 
         for t in transactions:
-            if "amount_val" in t: del t["amount_val"]
-            if "balance_val" in t: del t["balance_val"]
-            if "has_amounts" in t: del t["has_amounts"]
+            # Fix 9: Prevent KeyError when removing fields
+            t.pop("amount_val", None)
+            t.pop("balance_val", None)
+            t.pop("has_amounts", None)
 
-    except pdfplumber.pdfminer.pdfdocument.PDFPasswordIncorrect:
-        print(json.dumps({"error": "Password protected PDF. Please remove the password and try again."}))
-        return
     except Exception as e:
-        print(f"Error parsing PDF: {e}", file=sys.stderr)
-        print(json.dumps({"error": str(e)}))
-        sys.exit(1)
+        if "password" in str(e).lower() or "encrypt" in str(e).lower():
+            print(json.dumps({"error": "Password protected PDF. Please remove the password and try again."}))
+        else:
+            print(json.dumps({"error": f"Failed to parse PDF: {str(e)}"}))
+        return
 
     print(json.dumps(transactions, indent=4))
 

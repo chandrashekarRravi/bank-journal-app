@@ -1,6 +1,6 @@
 import sys
 import json
-import pdfplumber
+import fitz
 import re
 
 def extract_metadata(pdf_path):
@@ -11,13 +11,14 @@ def extract_metadata(pdf_path):
     }
     
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            text = ""
-            for page in pdf.pages[:3]: # check up to 3 pages for metadata
-                t = page.extract_text()
-                if t: text += t + "\n"
-            
-            if text:
+        doc = fitz.open(pdf_path)
+        text = ""
+        for i in range(min(3, len(doc))): # check up to 3 pages for metadata
+            page = doc[i]
+            t = page.get_text()
+            if t: text += t + "\n"
+        
+        if text:
                 upper_text = text.upper()
                 
                 # 1. Bank Name Extraction
