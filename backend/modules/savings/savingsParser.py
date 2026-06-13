@@ -19,7 +19,7 @@ def parse_pdf(pdf_path):
             
         full_text = ""
         for page in doc:
-            text = page.get_text()
+            text = page.get_text("text", sort=True)
             if not text:
                 continue
             full_text += text
