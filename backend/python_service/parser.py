@@ -51,32 +51,48 @@ def parse_pdf(pdf_path):
                     continue
 
                 # Check if line starts with a date (Transaction Start)
-                # Broadened date matching: e.g., 12/04/2023, 12-Jan-2023, 12 Jan 2023, 2023-04-12
-                # Support optional leading serial numbers like '1  12/04/2023'
-                date_match = re.search(r'^(?:\d+\s+)?(\d{1,4}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})', line)
+                date_match = re.search(r'^(?:\d+\s+)?(\d{1,2}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})', line)
+                txn_code_match = re.match(r'^(UPI|NEFT|RTGS|IMPS|ACH|CMS|TRF|CHQ)', line, re.IGNORECASE)
                 
-                if date_match:
-                    # If we were already building a transaction, save it
+                if txn_code_match and (current_trans is None or current_trans.get("has_amounts", False)):
                     if current_trans:
                         transactions.append(current_trans)
-                    
-                    # Start a new transaction
-                    date = date_match.group(1).strip()
-                    # The rest of this specific line
-                    rest = line[date_match.end():].strip()
-                    
                     current_trans = {
-                        "date": date,
-                        "description_parts": [rest],
+                        "date": "Unknown",
+                        "description_parts": [line],
                         "type": "unknown",
                         "amount": "0.00",
                         "amount_val": 0.0,
-                        "balance_val": None
+                        "balance_val": None,
+                        "has_amounts": False
                     }
+                elif date_match:
+                    date = date_match.group(1).strip()
+                    rest = line[date_match.end():].strip()
+                    
+                    if current_trans is None or current_trans.get("has_amounts", False):
+                        if current_trans:
+                            transactions.append(current_trans)
+                        
+                        current_trans = {
+                            "date": date,
+                            "description_parts": [rest] if rest else [],
+                            "type": "unknown",
+                            "amount": "0.00",
+                            "amount_val": 0.0,
+                            "balance_val": None,
+                            "has_amounts": False
+                        }
+                    else:
+                        if current_trans["date"] == "Unknown":
+                            current_trans["date"] = date
+                        if rest:
+                            current_trans["description_parts"].append(rest)
                 elif current_trans:
-                    # This line does NOT start with a date. 
-                    # It is a continuation of the previous description.
                     current_trans["description_parts"].append(line)
+                    
+                if current_trans and re.search(r'[-]?\d[\d,]*\.\d{2}', line):
+                    current_trans["has_amounts"] = True
 
         # Append the very last transaction
         if current_trans:
@@ -90,8 +106,6 @@ def parse_pdf(pdf_path):
             amounts_found = re.findall(r'([-]?\d[\d,]*\.\d{2})\s*(Cr|Dr|CR|DR|Cr\.|Dr\.)?', full_block, re.IGNORECASE)
             
             if amounts_found:
-                # Logic: The last amount is usually the Balance, 
-                # the one before it is the Transaction Amount.
                 if len(amounts_found) >= 2:
                     amt_str, ind = amounts_found[-2]
                     bal_str, _ = amounts_found[-1]
@@ -99,19 +113,23 @@ def parse_pdf(pdf_path):
                     trans["amount_val"] = float(amt_str.replace(',', '').replace('-', ''))
                     trans["balance_val"] = float(bal_str.replace(',', '').replace('-', ''))
                     
-                    # Deduce basic type from negative signs if present
                     if '-' in amt_str:
                         trans["type"] = "debit"
                 else:
                     amt_str, ind = amounts_found[0]
                     trans["amount"] = amt_str.replace('-', '')
                     trans["amount_val"] = float(amt_str.replace(',', '').replace('-', ''))
+                    trans["balance_val"] = float(amt_str.replace(',', '').replace('-', ''))
                 
-                # Check indicator for type
-                if any("CR" in (i[1] or "").upper() for i in amounts_found):
+                if re.search(r'\bCR\b', ind or "", re.IGNORECASE) or any("CR" in (i[1] or "").upper() for i in amounts_found):
                     trans["type"] = "credit"
-                elif any("DR" in (i[1] or "").upper() for i in amounts_found):
+                elif re.search(r'\bDR\b', ind or "", re.IGNORECASE) or any("DR" in (i[1] or "").upper() for i in amounts_found):
                     trans["type"] = "debit"
+                elif trans["type"] == "unknown":
+                    if re.search(r'\bDR\b', full_block, re.IGNORECASE) or "/DR/" in full_block.upper():
+                        trans["type"] = "debit"
+                    elif re.search(r'\bCR\b', full_block, re.IGNORECASE) or "/CR/" in full_block.upper():
+                        trans["type"] = "credit"
 
             # Clean up the description by joining parts and removing the money strings
             final_desc = " ".join(trans["description_parts"])
