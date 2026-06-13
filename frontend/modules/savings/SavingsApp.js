@@ -200,6 +200,7 @@ export function SavingsReportScreen({ route, navigation }) {
 
   // Category Edit State
   const [expandedCategory, setExpandedCategory] = useState(null);
+  const [isLedgersOpen, setIsLedgersOpen] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTxnIndex, setEditingTxnIndex] = useState(null);
   const [customCategories, setCustomCategories] = useState([
@@ -447,7 +448,14 @@ export function SavingsReportScreen({ route, navigation }) {
       </View>
 
       {/* Category Ledgers */}
-      <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50", marginHorizontal: 0, marginTop: 10, marginBottom: 16 }}>Category Ledgers</Text>
+      <TouchableOpacity activeOpacity={0.7} onPress={() => setIsLedgersOpen(!isLedgersOpen)}>
+        <NeumorphicView style={{ padding: 16, borderRadius: 12, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50" }}>Category Ledgers</Text>
+          <Text style={{ fontSize: 16, color: '#7f8c8d', fontWeight: 'bold' }}>{isLedgersOpen ? '↑' : '↓'}</Text>
+        </NeumorphicView>
+      </TouchableOpacity>
+      
+      {isLedgersOpen && (
       <View style={{ marginBottom: 24 }}>
         {ledgerArray.map((item, index) => (
           <TouchableOpacity
@@ -494,6 +502,7 @@ export function SavingsReportScreen({ route, navigation }) {
           </TouchableOpacity>
         ))}
       </View>
+      )}
 
       {/* Middle Row Charts */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 24, marginBottom: 24 }}>
