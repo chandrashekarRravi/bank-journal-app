@@ -180,13 +180,9 @@ const NeumorphicView = ({ children, style, inset }) => {
   const shadowStyle = Platform.OS === 'web' 
     ? { boxShadow: inset ? 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff' : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff' }
     : {
-        shadowColor: '#a3b1c6',
-        shadowOffset: { width: 4, height: 4 },
-        shadowOpacity: 0.5,
-        shadowRadius: 5,
-        elevation: 5
+        boxShadow: '4px 4px 5px rgba(163, 177, 198, 0.5), -4px -4px 5px rgba(255, 255, 255, 0.5)',
       };
-  return <View style={[{ backgroundColor: '#EBECF0', borderRadius: 12 }, shadowStyle, style]}>{children}</View>;
+  return <View style={[{ backgroundColor: '#E0E5EC', borderRadius: 12 }, shadowStyle, style]}>{children}</View>;
 };
 
 export function SavingsReportScreen({ route, navigation }) {
@@ -699,11 +695,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    boxShadow: '0px 2px 4px rgba(0,0,0,0.05)',
   },
   cardHeader: {
     flexDirection: "row",

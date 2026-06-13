@@ -171,7 +171,7 @@ function UploadScreen({ navigation }) {
         Upload your bank statement PDF to get started
       </Text>
 
-      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 30, backgroundColor: '#FFF', padding: 15, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 30, backgroundColor: '#FFF', padding: 15, borderRadius: 12, boxShadow: '0px 2px 4px rgba(0,0,0,0.05)' }}>
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginRight: 25 }} onPress={() => setStatementType('business')}>
           <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'business' ? '#288cfa' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
             {statementType === 'business' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#288cfa' }} />}
@@ -194,7 +194,7 @@ function UploadScreen({ navigation }) {
       )}
 
       {loading ? (
-        <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', backgroundColor: '#fff', padding: 25, borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 }}>
+        <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', backgroundColor: '#fff', padding: 25, borderRadius: 15, boxShadow: '0px 4px 10px rgba(0,0,0,0.1)' }}>
           <ActivityIndicator size="large" color="#288cfa" />
           <Text style={{ marginTop: 15, fontSize: 16, fontWeight: '600', color: '#242c34', textAlign: 'center' }}>{loadingText}</Text>
           <View style={{ width: '100%', height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, marginTop: 15, overflow: 'hidden' }}>
