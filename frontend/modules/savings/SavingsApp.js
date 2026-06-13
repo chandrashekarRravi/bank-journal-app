@@ -234,6 +234,7 @@ export function SavingsReportScreen({ route, navigation }) {
   const totalCredits = pieChartTransactions.filter(t => t.type === 'Credit').reduce((sum, t) => sum + parseFloat(t.amount.replace(/,/g, '')), 0);
   const totalDebits = pieChartTransactions.filter(t => t.type === 'Debit').reduce((sum, t) => sum + parseFloat(t.amount.replace(/,/g, '')), 0);
   const netCashFlow = totalCredits - totalDebits;
+  const transactionCount = pieChartTransactions.length;
 
   const categoryLedger = {};
   pieChartTransactions.forEach(t => {
@@ -494,5 +495,179 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#EBECF0",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#2C3E50",
+    padding: 20,
+    textAlign: "center",
+  },
+  listContent: {
+    padding: 16,
+  },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  cardDate: {
+    fontSize: 14,
+    color: "#7F8C8D",
+    fontWeight: "600",
+  },
+  cardAmount: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  creditText: {
+    color: "#27AE60",
+  },
+  debitText: {
+    color: "#E74C3C",
+  },
+  cardPartyName: {
+    fontSize: 16,
+    color: "#2C3E50",
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  cardDesc: {
+    fontSize: 14,
+    color: "#34495E",
+    marginBottom: 12,
+  },
+  badgeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  badge: {
+    backgroundColor: "#E8F4FD",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    color: "#4A90E2",
+    fontSize: 12,
+    fontWeight: "bold",
+    textTransform: "uppercase",
+  },
+  narrationText: {
+    fontSize: 12,
+    color: "#7F8C8D",
+    fontStyle: "italic",
+    flex: 1,
+  },
+  footer: {
+    padding: 20,
+    backgroundColor: "#FFF",
+    borderTopWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  button: {
+    backgroundColor: "#4A90E2",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  fullWidthButton: {
+    width: "100%",
+  },
+  buttonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  summaryCard: {
+    backgroundColor: "#FFF",
+    margin: 20,
+    padding: 20,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  summaryLabel: {
+    fontSize: 16,
+    color: "#34495E",
+    fontWeight: "600",
+  },
+  summaryValue: {
+    fontSize: 16,
+    color: "#2C3E50",
+    fontWeight: "bold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 20,
+    maxHeight: "80%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 16,
+    color: "#2C3E50",
+    textAlign: "center",
+  },
+  modalOption: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: "#34495E",
+    textAlign: "center",
+  },
+  modalCancel: {
+    marginTop: 16,
+    paddingVertical: 14,
+    backgroundColor: "#F8D7DA",
+    borderRadius: 8,
+  },
+  modalCancelText: {
+    color: "#721C24",
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#CBD5E0",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 10,
+    backgroundColor: "#F8FAFC",
   }
 });
