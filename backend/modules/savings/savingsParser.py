@@ -149,15 +149,30 @@ def parse_pdf(pdf_path):
             del trans["description_parts"]
 
         # Final pass: Deduce type using balance math
-        for i in range(1, len(transactions)):
-            if transactions[i]["type"] == "unknown" and transactions[i]["balance_val"] is not None and transactions[i-1]["balance_val"] is not None:
-                diff = transactions[i]["balance_val"] - transactions[i-1]["balance_val"]
-                if abs(diff - transactions[i].get("amount_val", 0)) < 0.01:
-                    transactions[i]["type"] = "credit"
-                elif abs(diff + transactions[i].get("amount_val", 0)) < 0.01:
-                    transactions[i]["type"] = "debit"
-                # Fix 6: Do not automatically assume debit if unknown without balance proof
-                # We leave it as 'unknown' instead of defaulting to debit
+        for i in range(len(transactions)):
+            if transactions[i]["type"] == "unknown" and transactions[i].get("balance_val") is not None:
+                amt = transactions[i].get("amount_val", 0)
+                bal = transactions[i]["balance_val"]
+                
+                # Check with previous (chronological assumption)
+                if i > 0 and transactions[i-1].get("balance_val") is not None:
+                    diff = bal - transactions[i-1]["balance_val"]
+                    if abs(diff - amt) < 0.01:
+                        transactions[i]["type"] = "credit"
+                        continue
+                    elif abs(diff + amt) < 0.01:
+                        transactions[i]["type"] = "debit"
+                        continue
+
+                # Check with next (reverse-chronological assumption)
+                if i < len(transactions) - 1 and transactions[i+1].get("balance_val") is not None:
+                    diff = bal - transactions[i+1]["balance_val"]
+                    if abs(diff - amt) < 0.01:
+                        transactions[i]["type"] = "credit"
+                        continue
+                    elif abs(diff + amt) < 0.01:
+                        transactions[i]["type"] = "debit"
+                        continue
 
         # Fix 8: Properly close the document to free memory
         doc.close()
