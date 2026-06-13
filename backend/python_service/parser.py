@@ -30,57 +30,57 @@ def parse_pdf(pdf_path):
                 line = line.strip()
                 if not line: continue 
                     
-                    # Ignore common header, footer, and summary lines
-                    ignore_patterns = [
-                        r'(?i)registered\s+office',
-                        r'(?i)page\s+\d+\s+of\s+\d+',
-                        r'(?i)statement\s+of\s+account',
-                        r'(?i)customer\s+id',
-                        r'(?i)account\s+no',
-                        r'(?i)statement\s+period',
-                        r'(?i)opening\s+balance',
-                        r'(?i)total\s+debit',
-                        r'(?i)total\s+credit',
-                        r'(?i)closing\s+balance',
-                        r'(?i)always\s+you\s+first', # IDFC tag
-                        r'(?i)branch\s+name',
-                        r'(?i)ifsc\s+code',
-                    ]
-                    
-                    if any(re.search(pattern, line) for pattern in ignore_patterns):
-                        continue
+                # Ignore common header, footer, and summary lines
+                ignore_patterns = [
+                    r'(?i)registered\s+office',
+                    r'(?i)page\s+\d+\s+of\s+\d+',
+                    r'(?i)statement\s+of\s+account',
+                    r'(?i)customer\s+id',
+                    r'(?i)account\s+no',
+                    r'(?i)statement\s+period',
+                    r'(?i)opening\s+balance',
+                    r'(?i)total\s+debit',
+                    r'(?i)total\s+credit',
+                    r'(?i)closing\s+balance',
+                    r'(?i)always\s+you\s+first', # IDFC tag
+                    r'(?i)branch\s+name',
+                    r'(?i)ifsc\s+code',
+                ]
+                
+                if any(re.search(pattern, line) for pattern in ignore_patterns):
+                    continue
 
-                    # Check if line starts with a date (Transaction Start)
-                    # Broadened date matching: e.g., 12/04/2023, 12-Jan-2023, 12 Jan 2023, 2023-04-12
-                    # Support optional leading serial numbers like '1  12/04/2023'
-                    date_match = re.search(r'^(?:\d+\s+)?(\d{1,4}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})', line)
+                # Check if line starts with a date (Transaction Start)
+                # Broadened date matching: e.g., 12/04/2023, 12-Jan-2023, 12 Jan 2023, 2023-04-12
+                # Support optional leading serial numbers like '1  12/04/2023'
+                date_match = re.search(r'^(?:\d+\s+)?(\d{1,4}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})', line)
+                
+                if date_match:
+                    # If we were already building a transaction, save it
+                    if current_trans:
+                        transactions.append(current_trans)
                     
-                    if date_match:
-                        # If we were already building a transaction, save it
-                        if current_trans:
-                            transactions.append(current_trans)
-                        
-                        # Start a new transaction
-                        date = date_match.group(1).strip()
-                        # The rest of this specific line
-                        rest = line[date_match.end():].strip()
-                        
-                        current_trans = {
-                            "date": date,
-                            "description_parts": [rest],
-                            "type": "unknown",
-                            "amount": "0.00",
-                            "amount_val": 0.0,
-                            "balance_val": None
-                        }
-                    elif current_trans:
-                        # This line does NOT start with a date. 
-                        # It is a continuation of the previous description.
-                        current_trans["description_parts"].append(line)
+                    # Start a new transaction
+                    date = date_match.group(1).strip()
+                    # The rest of this specific line
+                    rest = line[date_match.end():].strip()
+                    
+                    current_trans = {
+                        "date": date,
+                        "description_parts": [rest],
+                        "type": "unknown",
+                        "amount": "0.00",
+                        "amount_val": 0.0,
+                        "balance_val": None
+                    }
+                elif current_trans:
+                    # This line does NOT start with a date. 
+                    # It is a continuation of the previous description.
+                    current_trans["description_parts"].append(line)
 
-            # Append the very last transaction
-            if current_trans:
-                transactions.append(current_trans)
+        # Append the very last transaction
+        if current_trans:
+            transactions.append(current_trans)
 
         # --- POST-PROCESSING: Extract amounts from accumulated text ---
         for trans in transactions:
