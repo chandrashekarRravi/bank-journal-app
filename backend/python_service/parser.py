@@ -1,23 +1,34 @@
 import sys
 import json
-import pdfplumber
+import fitz
 import re
+
+# Force UTF-8 encoding for standard output on Windows
+sys.stdout.reconfigure(encoding='utf-8')
 
 def parse_pdf(pdf_path):
     transactions = []
     current_trans = None
     
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if not text:
-                    continue
-                
-                lines = text.split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if not line: continue 
+        doc = fitz.open(pdf_path)
+        
+        if doc.needs_pass:
+            print(json.dumps({"error": "Password protected PDF. Please remove the password and try again."}))
+            return
+            
+        full_text = ""
+        for page in doc:
+            text = page.get_text()
+            if not text:
+                continue
+            
+            full_text += text
+            
+            lines = text.split('\n')
+            for line in lines:
+                line = line.strip()
+                if not line: continue 
                     
                     # Ignore common header, footer, and summary lines
                     ignore_patterns = [
@@ -128,9 +139,18 @@ def parse_pdf(pdf_path):
             if "amount_val" in t: del t["amount_val"]
             if "balance_val" in t: del t["balance_val"]
 
+        doc.close()
+
+        if not full_text.strip() and not transactions:
+            print(json.dumps({"error": "Scanned PDF detected. The parser requires a digitally generated PDF downloaded directly from the bank. Image-based or scanned PDFs are not supported without OCR."}))
+            return
+
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        if "password" in str(e).lower() or "encrypt" in str(e).lower():
+            print(json.dumps({"error": "Password protected PDF. Please remove the password and try again."}))
+        else:
+            print(json.dumps({"error": f"Failed to parse PDF: {str(e)}"}))
+        return
 
     print(json.dumps(transactions, indent=4))
 
