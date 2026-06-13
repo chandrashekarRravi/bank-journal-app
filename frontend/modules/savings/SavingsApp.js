@@ -351,7 +351,7 @@ export function SavingsReportScreen({ route, navigation }) {
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 24, paddingBottom: 60 }}>
       {/* Top Header */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Text style={{ fontSize: 22, fontWeight: '700', color: '#2c3e50' }}>Savings Account Summary</Text>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: '#242c34' }}>Savings Account Summary</Text>
         <TouchableOpacity onPress={handleGeneratePDF}>
           <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}>
             <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 14 }}>↓ Export / Share PDF</Text>
@@ -365,7 +365,7 @@ export function SavingsReportScreen({ route, navigation }) {
           <View>
             <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600', marginBottom: 4 }}>Account Holder</Text>
             <TextInput
-              style={{ fontSize: 18, fontWeight: 'bold', color: '#2c3e50', outlineStyle: 'none', padding: 0 }}
+              style={{ fontSize: 18, fontWeight: 'bold', color: '#242c34', outlineStyle: 'none', padding: 0 }}
               value={currentMetadata.holderName || ''}
               placeholder="Enter Name"
               onChangeText={(text) => setCurrentMetadata({ ...currentMetadata, holderName: text })}
@@ -392,7 +392,7 @@ export function SavingsReportScreen({ route, navigation }) {
                 </View>
                 <Text style={{ fontSize: 13, color: '#34495e', fontWeight: '500' }}>{metric.title}</Text>
               </View>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#2c3e50', marginBottom: 4 }}>{metric.value}</Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#242c34', marginBottom: 4 }}>{metric.value}</Text>
               <Text style={{ fontSize: 12, color: '#7f8c8d' }}>--</Text>
               <Text style={{ fontSize: 11, color: '#95a5a6', marginTop: 4 }}>{metric.sub}</Text>
             </NeumorphicView>
@@ -402,13 +402,13 @@ export function SavingsReportScreen({ route, navigation }) {
         {/* Health Section */}
         <NeumorphicView inset={true} style={{ padding: 20, borderRadius: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
           <View style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 6, borderColor: '#bdc3c7', justifyContent: 'center', alignItems: 'center', marginRight: 20 }}>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#2c3e50' }}>{healthScore}</Text>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#242c34' }}>{healthScore}</Text>
             <Text style={{ fontSize: 10, color: '#7f8c8d' }}>/100</Text>
           </View>
           
           <View style={{ flex: 1, minWidth: 200, marginRight: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#2c3e50', marginRight: 10 }}>Savings Health</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34', marginRight: 10 }}>Savings Health</Text>
               <View style={{ backgroundColor: '#e2e8f0', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
                 <Text style={{ fontSize: 11, color: '#7f8c8d', fontWeight: '600' }}>{healthBadge}</Text>
               </View>
@@ -418,7 +418,7 @@ export function SavingsReportScreen({ route, navigation }) {
           
           <View style={{ borderLeftWidth: 1, borderLeftColor: '#d1d9e6', paddingLeft: 20 }}>
             <Text style={{ fontSize: 13, color: '#7f8c8d', fontWeight: '500', marginBottom: 4 }}>Savings Rate</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#2c3e50', marginBottom: 2 }}>{savingsRate.toFixed(2)}%</Text>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#242c34', marginBottom: 2 }}>{savingsRate.toFixed(2)}%</Text>
             <Text style={{ fontSize: 11, color: '#95a5a6' }}>(Net Cash Flow / Credits)</Text>
           </View>
         </NeumorphicView>
@@ -428,7 +428,7 @@ export function SavingsReportScreen({ route, navigation }) {
       {/* Bottom Row Filters */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10 }}>
         <View>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: '#2c3e50', marginBottom: 16 }}>Filter Breakdown</Text>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#242c34', marginBottom: 16 }}>Filter Breakdown</Text>
           <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
             {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
               <TouchableOpacity key={f} onPress={() => setChartFilter(f)}>
@@ -442,7 +442,7 @@ export function SavingsReportScreen({ route, navigation }) {
 
         <TouchableOpacity onPress={handleGeneratePDF}>
           <NeumorphicView style={{ paddingHorizontal: 24, paddingVertical: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ color: '#2c3e50', fontWeight: 'bold', fontSize: 15 }}>↓ Download / Share PDF</Text>
+            <Text style={{ color: '#242c34', fontWeight: 'bold', fontSize: 15 }}>↓ Download / Share PDF</Text>
           </NeumorphicView>
         </TouchableOpacity>
       </View>
@@ -450,7 +450,7 @@ export function SavingsReportScreen({ route, navigation }) {
       {/* Category Ledgers */}
       <TouchableOpacity activeOpacity={0.7} onPress={() => setIsLedgersOpen(!isLedgersOpen)}>
         <NeumorphicView style={{ padding: 16, borderRadius: 12, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2C3E50" }}>Category Ledgers</Text>
+          <Text style={{ fontSize: 18, fontWeight: "bold", color: "#242c34" }}>Category Ledgers</Text>
           <Text style={{ fontSize: 16, color: '#7f8c8d', fontWeight: 'bold' }}>{isLedgersOpen ? '↑' : '↓'}</Text>
         </NeumorphicView>
       </TouchableOpacity>
@@ -484,14 +484,14 @@ export function SavingsReportScreen({ route, navigation }) {
                     >
                       <View style={{ flex: 1, paddingRight: 10 }}>
                         <Text style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>{t.date}</Text>
-                        <Text style={{ fontSize: 13, color: '#2c3e50' }}>{t.narration}</Text>
+                        <Text style={{ fontSize: 13, color: '#242c34' }}>{t.narration}</Text>
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <Text style={{ fontSize: 13, fontWeight: 'bold', color: t.type === 'Credit' ? '#27ae60' : '#e74c3c', marginRight: 12 }}>
                           {t.type === 'Credit' ? '+' : '-'}₹{t.amount}
                         </Text>
                         <NeumorphicView style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                          <Text style={{ fontSize: 11, color: '#3498db', fontWeight: 'bold' }}>EDIT</Text>
+                          <Text style={{ fontSize: 11, color: '#7ebcf9', fontWeight: 'bold' }}>EDIT</Text>
                         </NeumorphicView>
                       </View>
                     </TouchableOpacity>
@@ -509,7 +509,7 @@ export function SavingsReportScreen({ route, navigation }) {
         {/* Cash Flow Trend */}
         <NeumorphicView style={{ flex: 1, minWidth: 320, padding: 24, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#2c3e50' }}>Cash Flow Trend</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Cash Flow Trend</Text>
             <View style={{ flexDirection: 'row', gap: 16 }}>
               <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600' }}>━ Credits</Text>
               <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600' }}>━ Debits</Text>
@@ -550,7 +550,7 @@ export function SavingsReportScreen({ route, navigation }) {
         {/* Expense Breakdown */}
         <NeumorphicView style={{ flex: 1, minWidth: 320, padding: 24, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#2c3e50' }}>Expense Breakdown</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Expense Breakdown</Text>
             <NeumorphicView inset={true} style={{ flexDirection: 'row', borderRadius: 20, padding: 2 }}>
               <TouchableOpacity onPress={() => setSelectedChartType('Pie')} style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18, backgroundColor: selectedChartType === 'Pie' ? '#EBECF0' : 'transparent', ...Platform.select({ web: selectedChartType === 'Pie' ? { boxShadow: '2px 2px 5px #d1d9e6, -2px -2px 5px #ffffff' } : {} }) }}>
                 <Text style={{ color: '#34495e', fontSize: 12, fontWeight: '600' }}>Pie</Text>
@@ -590,7 +590,7 @@ export function SavingsReportScreen({ route, navigation }) {
                   <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: ["#7f8c8d", "#95a5a6", "#bdc3c7", "#d35400", "#c0392b"][i % 5], marginRight: 10 }} />
-                      <Text style={{ fontSize: 13, color: '#2c3e50', fontWeight: '600', maxWidth: 100 }} numberOfLines={1}>{l.name}</Text>
+                      <Text style={{ fontSize: 13, color: '#242c34', fontWeight: '600', maxWidth: 100 }} numberOfLines={1}>{l.name}</Text>
                     </View>
                     <Text style={{ fontSize: 13, color: '#34495e' }}>{formatCurrency(l.debit)} ({((l.debit / totalDebits) * 100).toFixed(2)}%)</Text>
                   </View>
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#2C3E50",
+    color: "#242c34",
     padding: 20,
     textAlign: "center",
   },
@@ -727,7 +727,7 @@ const styles = StyleSheet.create({
   },
   cardPartyName: {
     fontSize: 16,
-    color: "#2C3E50",
+    color: "#242c34",
     fontWeight: "bold",
     marginBottom: 4,
   },
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   badgeText: {
-    color: "#4A90E2",
+    color: "#288cfa",
     fontSize: 12,
     fontWeight: "bold",
     textTransform: "uppercase",
@@ -767,7 +767,7 @@ const styles = StyleSheet.create({
     borderColor: "#E0E0E0",
   },
   button: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: "#288cfa",
     padding: 16,
     borderRadius: 8,
     alignItems: "center",
@@ -805,7 +805,7 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: 16,
-    color: "#2C3E50",
+    color: "#242c34",
     fontWeight: "bold",
   },
   modalOverlay: {
@@ -824,7 +824,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 16,
-    color: "#2C3E50",
+    color: "#242c34",
     textAlign: "center",
   },
   modalOption: {

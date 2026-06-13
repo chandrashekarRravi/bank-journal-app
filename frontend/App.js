@@ -173,16 +173,16 @@ function UploadScreen({ navigation }) {
 
       <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 30, backgroundColor: '#FFF', padding: 15, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginRight: 25 }} onPress={() => setStatementType('business')}>
-          <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'business' ? '#4A90E2' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-            {statementType === 'business' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#4A90E2' }} />}
+          <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'business' ? '#288cfa' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+            {statementType === 'business' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#288cfa' }} />}
           </View>
-          <Text style={{ fontSize: 16, fontWeight: statementType === 'business' ? '600' : '400', color: statementType === 'business' ? '#2C3E50' : '#718096' }}>Business Account</Text>
+          <Text style={{ fontSize: 16, fontWeight: statementType === 'business' ? '600' : '400', color: statementType === 'business' ? '#242c34' : '#718096' }}>Business Account</Text>
         </TouchableOpacity>
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setStatementType('savings')}>
-          <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'savings' ? '#4A90E2' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-            {statementType === 'savings' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#4A90E2' }} />}
+          <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'savings' ? '#288cfa' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+            {statementType === 'savings' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#288cfa' }} />}
           </View>
-          <Text style={{ fontSize: 16, fontWeight: statementType === 'savings' ? '600' : '400', color: statementType === 'savings' ? '#2C3E50' : '#718096' }}>Savings Account</Text>
+          <Text style={{ fontSize: 16, fontWeight: statementType === 'savings' ? '600' : '400', color: statementType === 'savings' ? '#242c34' : '#718096' }}>Savings Account</Text>
         </TouchableOpacity>
       </View>
 
@@ -195,10 +195,10 @@ function UploadScreen({ navigation }) {
 
       {loading ? (
         <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', backgroundColor: '#fff', padding: 25, borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 }}>
-          <ActivityIndicator size="large" color="#4A90E2" />
-          <Text style={{ marginTop: 15, fontSize: 16, fontWeight: '600', color: '#2C3E50', textAlign: 'center' }}>{loadingText}</Text>
+          <ActivityIndicator size="large" color="#288cfa" />
+          <Text style={{ marginTop: 15, fontSize: 16, fontWeight: '600', color: '#242c34', textAlign: 'center' }}>{loadingText}</Text>
           <View style={{ width: '100%', height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, marginTop: 15, overflow: 'hidden' }}>
-            <View style={{ width: `${loadingProgress * 100}%`, height: '100%', backgroundColor: '#4A90E2', borderRadius: 3 }} />
+            <View style={{ width: `${loadingProgress * 100}%`, height: '100%', backgroundColor: '#288cfa', borderRadius: 3 }} />
           </View>
         </View>
       ) : (
@@ -400,7 +400,7 @@ function JournalScreen({ route, navigation }) {
         <tr>
           <td style="text-align: center; color: #555;">${index + 1}</td>
           <td style="white-space: nowrap; text-align: center; color: #333;">${item.date}</td>
-          <td style="text-align: center;"><span style="background-color: #E8F4FD; color: #4A90E2; padding: 4px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase; font-weight: bold;">${item.category || "Misc"}</span></td>
+          <td style="text-align: center;"><span style="background-color: #E8F4FD; color: #288cfa; padding: 4px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase; font-weight: bold;">${item.category || "Misc"}</span></td>
           <td>
             <div style="margin-bottom: 6px; font-size: 14px;"><strong>${debAcc} A/c</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="float: right; font-weight: bold; color: #555;">Dr.</span></div>
             <div style="padding-left: 40px; margin-bottom: 6px; font-size: 14px;">To <strong>${credAcc} A/c</strong></div>
@@ -423,13 +423,13 @@ function JournalScreen({ route, navigation }) {
           <head>
             <style>
               body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px; font-size: 13px; color: #333; background-color: #fff; }
-              .header-container { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #2C3E50; padding-bottom: 20px; }
-              .logo { font-size: 24px; font-weight: 800; color: #2C3E50; letter-spacing: 1px; margin-bottom: 5px; }
+              .header-container { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #242c34; padding-bottom: 20px; }
+              .logo { font-size: 24px; font-weight: 800; color: #242c34; letter-spacing: 1px; margin-bottom: 5px; }
               .doc-title { font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 2px; }
               .meta-info { text-align: right; margin-bottom: 20px; font-size: 12px; color: #7f8c8d; }
               table { width: 100%; border-collapse: collapse; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
               th, td { border: 1px solid #e0e0e0; padding: 14px 12px; vertical-align: top; }
-              th { background-color: #f4f6f7; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #2c3e50; border-bottom: 2px solid #bdc3c7; }
+              th { background-color: #f4f6f7; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #242c34; border-bottom: 2px solid #bdc3c7; }
               tr:nth-child(even) { background-color: #fafbfc; }
               .total-row td { background-color: #f4f6f7; font-weight: bold; font-size: 14px; border-top: 2px solid #bdc3c7; }
               .footer { margin-top: 50px; text-align: center; font-size: 11px; color: #95a5a6; border-top: 1px solid #eee; padding-top: 20px; }
@@ -715,8 +715,8 @@ function LedgersScreen({ route }) {
           <head>
             <style>
               body { font-family: 'Segoe UI', sans-serif; padding: 40px; font-size: 13px; color: #333; }
-              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2C3E50; padding-bottom: 10px; }
-              .title { font-size: 24px; font-weight: bold; color: #2C3E50; }
+              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #242c34; padding-bottom: 10px; }
+              .title { font-size: 24px; font-weight: bold; color: #242c34; }
               .account-header { font-size: 18px; font-weight: bold; margin-top: 30px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;}
               table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
               th, td { border: 1px solid #e0e0e0; padding: 8px; text-align: left; }
@@ -873,7 +873,7 @@ export default function App() {
       <Stack.Navigator
         initialRouteName="Upload"
         screenOptions={{
-          headerStyle: { backgroundColor: "#4A90E2" },
+          headerStyle: { backgroundColor: "#103766" },
           headerTintColor: "#fff",
           headerTitleStyle: { fontWeight: "bold" },
         }}
@@ -1200,14 +1200,14 @@ const styles = StyleSheet.create({
   },
   ledgerHeader: {
     borderBottomWidth: 2,
-    borderBottomColor: "#2C3E50",
+    borderBottomColor: "#242c34",
     paddingBottom: 10,
     marginBottom: 10,
   },
   ledgerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2C3E50",
+    color: "#242c34",
     textAlign: "center",
   },
   ledgerTableHeader: {
