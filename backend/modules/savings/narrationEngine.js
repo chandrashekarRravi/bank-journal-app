@@ -2,16 +2,17 @@ const extractPartyName = (description) => {
   let desc = (description || '').trim();
   const splitTokens = desc.split(/[/\\-]/).map(p => p.trim()).filter(p => p);
   
-  const ignoreWords = ['UPI', 'UPIAR', 'UPIAB', 'UPID', 'NEFT', 'RTGS', 'IMPS', 'INB', 'INF', 'BULK', 'IFT', 'CR', 'DR', 'P2A', 'P2P', 'P2M', 'OPT', 'GST', 'ACH', 'ACHRE', 'CMS', 'TRF'];
-  
   for (let part of splitTokens) {
     let partUpper = part.toUpperCase();
     
     if (/^[\d:\. ]+$/.test(part)) continue;
     if (/^[A-Z0-9]{10,}$/i.test(partUpper) && !part.includes(' ')) continue; 
-    if (ignoreWords.includes(partUpper)) continue;
     if (partUpper.includes('CHQ:') || partUpper.includes('CHQ ')) continue;
     
+    // If the part consists entirely of bank keywords, skip it
+    let cleanPart = partUpper.replace(/\b(WDL|TFR|TRF|UPI|UPIAR|UPIAB|UPID|NEFT|RTGS|IMPS|INB|INF|BULK|IFT|CR|DR|P2A|P2P|P2M|OPT|GST|ACH|ACHRE|CMS|POS|ECOM)\b/g, '').replace(/[^A-Z]/g, '').trim();
+    if (!cleanPart) continue;
+
     if (part.includes('@')) {
        let beforeAt = part.split('@')[0];
        if (beforeAt.includes(' ')) {
