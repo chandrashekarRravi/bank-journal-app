@@ -149,30 +149,37 @@ def parse_pdf(pdf_path):
             del trans["description_parts"]
 
         # Final pass: Deduce type using balance math
+        # First, determine overall statement timeline direction
+        is_reverse_chrono = False
+        for i in range(len(transactions) - 1):
+            if transactions[i].get("balance_val") is not None and transactions[i+1].get("balance_val") is not None:
+                diff = transactions[i]["balance_val"] - transactions[i+1]["balance_val"]
+                amt = transactions[i].get("amount_val", 0)
+                if abs(diff - amt) < 0.01 or abs(diff + amt) < 0.01:
+                    is_reverse_chrono = True
+                    break
+
         for i in range(len(transactions)):
             if transactions[i]["type"] == "unknown" and transactions[i].get("balance_val") is not None:
                 amt = transactions[i].get("amount_val", 0)
                 bal = transactions[i]["balance_val"]
                 
-                # Check with previous (chronological assumption)
-                if i > 0 and transactions[i-1].get("balance_val") is not None:
-                    diff = bal - transactions[i-1]["balance_val"]
-                    if abs(diff - amt) < 0.01:
-                        transactions[i]["type"] = "credit"
-                        continue
-                    elif abs(diff + amt) < 0.01:
-                        transactions[i]["type"] = "debit"
-                        continue
-
-                # Check with next (reverse-chronological assumption)
-                if i < len(transactions) - 1 and transactions[i+1].get("balance_val") is not None:
-                    diff = bal - transactions[i+1]["balance_val"]
-                    if abs(diff - amt) < 0.01:
-                        transactions[i]["type"] = "credit"
-                        continue
-                    elif abs(diff + amt) < 0.01:
-                        transactions[i]["type"] = "debit"
-                        continue
+                if is_reverse_chrono:
+                    # Check with next (reverse-chronological assumption)
+                    if i < len(transactions) - 1 and transactions[i+1].get("balance_val") is not None:
+                        diff = bal - transactions[i+1]["balance_val"]
+                        if abs(diff - amt) < 0.01:
+                            transactions[i]["type"] = "credit"
+                        elif abs(diff + amt) < 0.01:
+                            transactions[i]["type"] = "debit"
+                else:
+                    # Check with previous (chronological assumption)
+                    if i > 0 and transactions[i-1].get("balance_val") is not None:
+                        diff = bal - transactions[i-1]["balance_val"]
+                        if abs(diff - amt) < 0.01:
+                            transactions[i]["type"] = "credit"
+                        elif abs(diff + amt) < 0.01:
+                            transactions[i]["type"] = "debit"
 
         # Fix 8: Properly close the document to free memory
         doc.close()
