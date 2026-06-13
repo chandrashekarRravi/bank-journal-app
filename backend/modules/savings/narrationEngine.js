@@ -1,32 +1,32 @@
 const extractPartyName = (description) => {
   let desc = (description || '').trim();
   const splitTokens = desc.split(/[/\\-]/).map(p => p.trim()).filter(p => p);
-  
+
   for (let part of splitTokens) {
     let partUpper = part.toUpperCase();
-    
+
     if (/^[\d:\. ]+$/.test(part)) continue;
-    if (/^[A-Z0-9]{10,}$/i.test(partUpper) && !part.includes(' ')) continue; 
+    if (/^[A-Z0-9]{10,}$/i.test(partUpper) && !part.includes(' ')) continue;
     if (partUpper.includes('CHQ:') || partUpper.includes('CHQ ')) continue;
-    
+
     // If the part consists entirely of bank keywords, skip it
-    let cleanPart = partUpper.replace(/\b(WDL|TFR|TRF|UPI|UPIAR|UPIAB|UPID|NEFT|RTGS|IMPS|INB|INF|BULK|IFT|CR|DR|P2A|P2P|P2M|OPT|GST|ACH|ACHRE|CMS|POS|ECOM)\b/g, '').replace(/[^A-Z]/g, '').trim();
+    let cleanPart = partUpper.replace(/\b(WDL|TFR|TRF|DEP|UPI|UPIAR|UPIAB|UPID|NEFT|RTGS|IMPS|INB|INF|BULK|IFT|CR|DR|P2A|P2P|P2M|OPT|GST|ACH|ACHRE|CMS|POS|ECOM)\b/g, '').replace(/[^A-Z]/g, '').trim();
     if (!cleanPart) continue;
 
     if (part.includes('@')) {
-       let beforeAt = part.split('@')[0];
-       if (beforeAt.includes(' ')) {
-         return beforeAt.substring(0, beforeAt.lastIndexOf(' ')).trim();
-       } else {
-         return beforeAt;
-       }
+      let beforeAt = part.split('@')[0];
+      if (beforeAt.includes(' ')) {
+        return beforeAt.substring(0, beforeAt.lastIndexOf(' ')).trim();
+      } else {
+        return beforeAt;
+      }
     }
-    
+
     if (part.replace(/[^a-zA-Z]/g, '').length >= 3) {
-       return part;
+      return part;
     }
   }
-  
+
   return desc.length > 25 ? desc.substring(0, 25) + '...' : desc;
 };
 
@@ -37,7 +37,7 @@ const generateNarration = (description, type, category, extractedPartyName) => {
   if (category === 'Salary') {
     return 'Being salary credited to bank account';
   }
-  
+
   if (category === 'Interest') {
     return 'Being savings bank interest credited';
   }
