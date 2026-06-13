@@ -346,10 +346,10 @@ export function SavingsReportScreen({ route, navigation }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 24, paddingBottom: 60 }}>
       {/* Top Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Text style={{ fontSize: 22, fontWeight: '700', color: '#242c34' }}>Savings Account Summary</Text>
-        <TouchableOpacity onPress={handleGeneratePDF}>
-          <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ marginBottom: 20 }}>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: '#242c34', marginBottom: 16 }}>Savings Account Summary</Text>
+        <TouchableOpacity onPress={handleGeneratePDF} style={{ width: '100%' }}>
+          <NeumorphicView style={{ paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 14 }}>↓ Export / Share PDF</Text>
           </NeumorphicView>
         </TouchableOpacity>
@@ -374,23 +374,23 @@ export function SavingsReportScreen({ route, navigation }) {
         </View>
 
         {/* Metrics Row */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 24 }}>
           {[
             { title: 'Total Credits', value: formatCurrency(totalCredits), sub: '100% of inflow', icon: '↓' },
             { title: 'Total Debits', value: formatCurrency(totalDebits), sub: '100% of outflow', icon: '↑' },
             { title: 'Net Cash Flow', value: formatCurrency(netCashFlow), sub: netCashFlow >= 0 ? 'Positive ✓' : 'Negative ✗', icon: '💼' },
             { title: 'Transaction Count', value: transactionCount.toString(), sub: 'Total Transactions', icon: '⏱' }
           ].map((metric, i) => (
-            <NeumorphicView key={i} style={{ flex: 1, minWidth: 150, padding: 16, borderRadius: 12 }}>
+            <NeumorphicView key={i} style={{ width: '48%', padding: 16, borderRadius: 12, marginBottom: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#EBECF0', justifyContent: 'center', alignItems: 'center', marginRight: 10, ...Platform.select({ web: { boxShadow: 'inset 2px 2px 5px #d1d9e6, inset -2px -2px 5px #ffffff' } }) }}>
-                  <Text style={{ color: '#7f8c8d', fontSize: 14 }}>{metric.icon}</Text>
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#EBECF0', justifyContent: 'center', alignItems: 'center', marginRight: 8, ...Platform.select({ web: { boxShadow: 'inset 2px 2px 5px #d1d9e6, inset -2px -2px 5px #ffffff' } }) }}>
+                  <Text style={{ color: '#7f8c8d', fontSize: 12 }}>{metric.icon}</Text>
                 </View>
-                <Text style={{ fontSize: 13, color: '#34495e', fontWeight: '500' }}>{metric.title}</Text>
+                <Text style={{ fontSize: 11, color: '#34495e', fontWeight: '600' }} numberOfLines={1}>{metric.title}</Text>
               </View>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#242c34', marginBottom: 4 }}>{metric.value}</Text>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#242c34', marginBottom: 2 }} numberOfLines={1}>{metric.value}</Text>
               <Text style={{ fontSize: 12, color: '#7f8c8d' }}>--</Text>
-              <Text style={{ fontSize: 11, color: '#95a5a6', marginTop: 4 }}>{metric.sub}</Text>
+              <Text style={{ fontSize: 10, color: '#95a5a6', marginTop: 2 }}>{metric.sub}</Text>
             </NeumorphicView>
           ))}
         </View>
@@ -422,25 +422,24 @@ export function SavingsReportScreen({ route, navigation }) {
 
       
       {/* Bottom Row Filters */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10 }}>
-        <View>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: '#242c34', marginBottom: 16 }}>Filter Breakdown</Text>
-          <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
-            {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
-              <TouchableOpacity key={f} onPress={() => setChartFilter(f)}>
-                <NeumorphicView inset={chartFilter === f} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}>
-                  <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 13 }}>{f}</Text>
-                </NeumorphicView>
-              </TouchableOpacity>
-            ))}
-          </View>
+      <View style={{ marginTop: 10 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#242c34' }}>Filter Breakdown</Text>
+          <TouchableOpacity onPress={handleGeneratePDF}>
+            <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ color: '#242c34', fontWeight: 'bold', fontSize: 11 }}>↓ Download / Share PDF</Text>
+            </NeumorphicView>
+          </TouchableOpacity>
         </View>
-
-        <TouchableOpacity onPress={handleGeneratePDF}>
-          <NeumorphicView style={{ paddingHorizontal: 24, paddingVertical: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ color: '#242c34', fontWeight: 'bold', fontSize: 15 }}>↓ Download / Share PDF</Text>
-          </NeumorphicView>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
+            <TouchableOpacity key={f} onPress={() => setChartFilter(f)}>
+              <NeumorphicView inset={chartFilter === f} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
+                <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 11 }}>{f}</Text>
+              </NeumorphicView>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       {/* Category Ledgers */}
