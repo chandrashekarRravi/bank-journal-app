@@ -367,7 +367,7 @@ export function SavingsReportScreen({ route, navigation }) {
         // 4. Download file
         const buffer = await wb.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        const FileSaver = await import('file-saver');
+        const FileSaver = require('file-saver');
         FileSaver.saveAs(blob, "Savings_Ledgers.xlsx");
       } catch (err) {
         console.error("Error exporting to Excel:", err);
