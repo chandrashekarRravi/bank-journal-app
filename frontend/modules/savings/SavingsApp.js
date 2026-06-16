@@ -177,11 +177,11 @@ export function SavingsTransactionsScreen({ route, navigation }) {
 // 2. Savings Report Screen (shows summary and PDF options)
 // Helper for neumorphic UI
 const NeumorphicView = ({ children, style, inset }) => {
-  const shadowStyle = Platform.OS === 'web' 
+  const shadowStyle = Platform.OS === 'web'
     ? { boxShadow: inset ? 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff' : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff' }
     : {
-        boxShadow: '4px 4px 5px rgba(163, 177, 198, 0.5), -4px -4px 5px rgba(255, 255, 255, 0.5)',
-      };
+      boxShadow: '4px 4px 5px rgba(163, 177, 198, 0.5), -4px -4px 5px rgba(255, 255, 255, 0.5)',
+    };
   return <View style={[{ backgroundColor: '#E0E5EC', borderRadius: 12 }, shadowStyle, style]}>{children}</View>;
 };
 
@@ -189,7 +189,7 @@ export function SavingsReportScreen({ route, navigation }) {
   const { transactions, metadata } = route.params;
   const [localTransactions, setLocalTransactions] = useState(transactions);
   const [currentMetadata, setCurrentMetadata] = useState(metadata || {});
-  
+
   // Chart Filters
   const [chartFilter, setChartFilter] = useState('All Time');
   const [selectedChartType, setSelectedChartType] = useState('Pie');
@@ -251,6 +251,31 @@ export function SavingsReportScreen({ route, navigation }) {
     await generateSavingsPDF(pieChartTransactions, currentMetadata, selectedChartType);
   };
 
+  const exportToExcel = () => {
+    if (Platform.OS === 'web') {
+      const header = "Date,Description,Narration,Party Name,Category,Type,Amount\n";
+      const rows = pieChartTransactions.map(t => {
+        const desc = (t.description || '').replace(/"/g, '""');
+        const nar = (t.narration || '').replace(/"/g, '""');
+        const party = (t.partyName || '').replace(/"/g, '""');
+        return `"${t.date}","${desc}","${nar}","${party}","${t.category || 'Misc'}","${t.type}","${t.amount}"`;
+      }).join("\n");
+      
+      const csv = header + rows;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "Savings_Transactions.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      alert("Excel export is supported on Web only for now.");
+    }
+  };
+
   const parseDateString = (dateStr) => {
     if (!dateStr) return new Date(0);
     const parts = dateStr.split(/[-/]/);
@@ -303,7 +328,7 @@ export function SavingsReportScreen({ route, navigation }) {
   const formatCurrency = (val) => {
     return '₹' + val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
-  
+
   const formatShortCurrency = (val) => {
     if (Math.abs(val) >= 1000) return '₹' + (val / 1000).toFixed(1) + 'k';
     return '₹' + val.toFixed(0);
@@ -333,14 +358,14 @@ export function SavingsReportScreen({ route, navigation }) {
     else monthlyDataMap[month].debit += amt;
     monthlyDataMap[month].net = monthlyDataMap[month].credit - monthlyDataMap[month].debit;
   });
-  
+
   const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const availableMonths = monthsOrder.filter(m => monthlyDataMap[m]);
   const lineLabels = availableMonths.length > 0 ? availableMonths : ['Jan', 'Feb', 'Mar'];
   const lineCredits = lineLabels.map(m => monthlyDataMap[m] ? monthlyDataMap[m].credit : 0);
   const lineDebits = lineLabels.map(m => monthlyDataMap[m] ? monthlyDataMap[m].debit : 0);
   const lineNet = lineLabels.map(m => monthlyDataMap[m] ? monthlyDataMap[m].net : 0);
-  
+
   const chartWidth = Dimensions.get("window").width;
 
   return (
@@ -365,7 +390,6 @@ export function SavingsReportScreen({ route, navigation }) {
               value={currentMetadata.holderName || ''}
               placeholder="Enter Name"
               onChangeText={(text) => setCurrentMetadata({ ...currentMetadata, holderName: text })}
-              placeholder="Enter Name"
             />
           </View>
           <NeumorphicView style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, height: 32, justifyContent: 'center' }}>
@@ -401,7 +425,7 @@ export function SavingsReportScreen({ route, navigation }) {
             <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#242c34' }}>{healthScore}</Text>
             <Text style={{ fontSize: 10, color: '#7f8c8d' }}>/100</Text>
           </View>
-          
+
           <View style={{ flex: 1, minWidth: 200, marginRight: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
               <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34', marginRight: 10 }}>Savings Health</Text>
@@ -411,7 +435,7 @@ export function SavingsReportScreen({ route, navigation }) {
             </View>
             <Text style={{ fontSize: 13, color: '#34495e', lineHeight: 20 }}>{healthText}</Text>
           </View>
-          
+
           <View style={{ borderLeftWidth: 1, borderLeftColor: '#d1d9e6', paddingLeft: 20 }}>
             <Text style={{ fontSize: 13, color: '#7f8c8d', fontWeight: '500', marginBottom: 4 }}>Savings Rate</Text>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#242c34', marginBottom: 2 }}>{savingsRate.toFixed(2)}%</Text>
@@ -420,16 +444,23 @@ export function SavingsReportScreen({ route, navigation }) {
         </NeumorphicView>
       </NeumorphicView>
 
-      
+
       {/* Bottom Row Filters */}
       <View style={{ marginTop: 10 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
           <Text style={{ fontSize: 12, fontWeight: '700', color: '#242c34' }}>Filter Breakdown</Text>
-          <TouchableOpacity onPress={handleGeneratePDF}>
-            <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ color: '#242c34', fontWeight: 'bold', fontSize: 11 }}>↓ Download / Share PDF</Text>
-            </NeumorphicView>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity onPress={exportToExcel}>
+              <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: '#27ae60', fontWeight: 'bold', fontSize: 11 }}>📊 Export Excel</Text>
+              </NeumorphicView>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleGeneratePDF}>
+              <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: '#242c34', fontWeight: 'bold', fontSize: 11 }}>↓ Download PDF</Text>
+              </NeumorphicView>
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
           {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
@@ -449,54 +480,54 @@ export function SavingsReportScreen({ route, navigation }) {
           <Text style={{ fontSize: 16, color: '#7f8c8d', fontWeight: 'bold' }}>{isLedgersOpen ? '↑' : '↓'}</Text>
         </NeumorphicView>
       </TouchableOpacity>
-      
-      {isLedgersOpen && (
-      <View style={{ marginBottom: 24 }}>
-        {ledgerArray.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            activeOpacity={0.7}
-            onPress={() => setExpandedCategory(expandedCategory === item.name ? null : item.name)}
-          >
-            <NeumorphicView style={{ padding: 16, borderRadius: 12, marginBottom: 12 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e' }}>{item.name}</Text>
-                <Text style={{ fontSize: 14, color: '#7f8c8d' }}>{item.count} txns</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
-                <Text style={{ fontSize: 14, color: '#27ae60', fontWeight: '500' }}>In: ₹{item.credit.toFixed(2)}</Text>
-                <Text style={{ fontSize: 14, color: '#e74c3c', fontWeight: '500' }}>Out: ₹{item.debit.toFixed(2)}</Text>
-                <Text style={{ fontSize: 14, fontWeight: 'bold', color: item.netFlow >= 0 ? '#27ae60' : '#e74c3c' }}>Net: ₹{item.netFlow.toFixed(2)}</Text>
-              </View>
 
-              {expandedCategory === item.name && (
-                <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: '#d1d9e6', paddingTop: 10 }}>
-                  {pieChartTransactions.filter(t => (t.category || "Misc") === item.name).map((t, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      onPress={() => openCategoryModal(t)}
-                      style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(209, 217, 230, 0.4)', alignItems: 'center' }}
-                    >
-                      <View style={{ flex: 1, paddingRight: 10 }}>
-                        <Text style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>{t.date}</Text>
-                        <Text style={{ fontSize: 13, color: '#242c34' }}>{t.narration}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: t.type === 'Credit' ? '#27ae60' : '#e74c3c', marginRight: 12 }}>
-                          {t.type === 'Credit' ? '+' : '-'}₹{t.amount}
-                        </Text>
-                        <NeumorphicView style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                          <Text style={{ fontSize: 11, color: '#7ebcf9', fontWeight: 'bold' }}>EDIT</Text>
-                        </NeumorphicView>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+      {isLedgersOpen && (
+        <View style={{ marginBottom: 24 }}>
+          {ledgerArray.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              activeOpacity={0.7}
+              onPress={() => setExpandedCategory(expandedCategory === item.name ? null : item.name)}
+            >
+              <NeumorphicView style={{ padding: 16, borderRadius: 12, marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e' }}>{item.name}</Text>
+                  <Text style={{ fontSize: 14, color: '#7f8c8d' }}>{item.count} txns</Text>
                 </View>
-              )}
-            </NeumorphicView>
-          </TouchableOpacity>
-        ))}
-      </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
+                  <Text style={{ fontSize: 14, color: '#27ae60', fontWeight: '500' }}>In: ₹{item.credit.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 14, color: '#e74c3c', fontWeight: '500' }}>Out: ₹{item.debit.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: item.netFlow >= 0 ? '#27ae60' : '#e74c3c' }}>Net: ₹{item.netFlow.toFixed(2)}</Text>
+                </View>
+
+                {expandedCategory === item.name && (
+                  <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: '#d1d9e6', paddingTop: 10 }}>
+                    {pieChartTransactions.filter(t => (t.category || "Misc") === item.name).map((t, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        onPress={() => openCategoryModal(t)}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(209, 217, 230, 0.4)', alignItems: 'center' }}
+                      >
+                        <View style={{ flex: 1, paddingRight: 10 }}>
+                          <Text style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>{t.date}</Text>
+                          <Text style={{ fontSize: 13, color: '#242c34' }}>{t.narration}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 13, fontWeight: 'bold', color: t.type === 'Credit' ? '#27ae60' : '#e74c3c', marginRight: 12 }}>
+                            {t.type === 'Credit' ? '+' : '-'}₹{t.amount}
+                          </Text>
+                          <NeumorphicView style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                            <Text style={{ fontSize: 11, color: '#7ebcf9', fontWeight: 'bold' }}>EDIT</Text>
+                          </NeumorphicView>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </NeumorphicView>
+            </TouchableOpacity>
+          ))}
+        </View>
       )}
 
       {/* Middle Row Charts */}
@@ -511,33 +542,32 @@ export function SavingsReportScreen({ route, navigation }) {
               <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600' }}>━ Net Cash Flow</Text>
             </View>
           </View>
-          
+
           <View style={{ alignItems: 'center', marginLeft: -20 }}>
-            <LineChart
+            <BarChart
               data={{
                 labels: lineLabels,
                 datasets: [
-                  { data: lineCredits, color: () => '#95a5a6' },
-                  { data: lineDebits, color: () => '#7f8c8d' },
-                  { data: lineNet, color: () => '#bdc3c7' }
+                  { data: lineNet }
                 ]
               }}
               width={chartWidth > 800 ? (chartWidth - 80) / 2 : chartWidth - 80}
               height={220}
+              yAxisLabel="₹"
+              fromZero={true}
               chartConfig={{
                 backgroundColor: "#EBECF0",
                 backgroundGradientFrom: "#EBECF0",
                 backgroundGradientTo: "#EBECF0",
                 decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(149, 165, 166, ${opacity})`,
+                color: (opacity = 1) => `rgba(40, 140, 250, ${opacity})`,
                 labelColor: (opacity = 1) => `rgba(127, 140, 141, ${opacity})`,
-                propsForDots: { r: "3", strokeWidth: "1", stroke: "#fff" },
                 formatYLabel: formatShortCurrency
               }}
               withInnerLines={true}
-              withOuterLines={false}
-              withVerticalLines={false}
-              bezier
+              showBarTops={false}
+              showValuesOnTopOfBars={false}
+              style={{ borderRadius: 10 }}
             />
           </View>
         </NeumorphicView>
@@ -621,7 +651,7 @@ export function SavingsReportScreen({ route, navigation }) {
 
 
 
-    
+
       {/* Category Modal */}
       <Modal visible={modalVisible} transparent={true} animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
