@@ -136,7 +136,13 @@ export const generateSavingsPDF = async (transactions, metadata = {}, chartType 
     <html>
       <head>
         <style>
-          body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px; font-size: 13px; color: #333; background-color: #fff; }
+          @media print {
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+          }
+          body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px; font-size: 13px; color: #333; background-color: #fff; -webkit-print-color-adjust: exact; }
           .header-container { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #27ae60; padding-bottom: 20px; }
           .logo { font-size: 24px; font-weight: 800; color: #27ae60; letter-spacing: 1px; margin-bottom: 5px; }
           .doc-title { font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 2px; }
