@@ -184,10 +184,18 @@ const extractAccountName = (description) => {
         potentialName = potentialName.substring(3).trim();
       }
       
+      if (potentialName.includes('@')) {
+        let beforeAt = potentialName.split('@')[0];
+        if (beforeAt.includes(' ')) {
+          return beforeAt.substring(0, beforeAt.lastIndexOf(' ')).trim();
+        } else {
+          return beforeAt;
+        }
+      }
+
       // Looks like a valid name if it has a few letters
-      if (/[a-zA-Z]{3,}/.test(potentialName)) {
-        let name = potentialName.replace(/^[0-9A-Z]{8,20}\s*/, '').trim();
-        if (name) return name;
+      if (potentialName.replace(/[^a-zA-Z]/g, '').length >= 3) {
+        return potentialName;
       }
     }
   }
