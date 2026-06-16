@@ -534,26 +534,19 @@ export function SavingsReportScreen({ route, navigation }) {
 
       {/* Middle Row Charts */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 24, marginBottom: 24 }}>
-        {/* Cash Flow Trend */}
+        {/* Top Expenses (Bar) */}
         <NeumorphicView style={{ flex: 1, minWidth: 320, padding: 24, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Cash Flow Trend</Text>
-            <View style={{ flexDirection: 'row', gap: 16 }}>
-              <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600' }}>━ Credits</Text>
-              <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600' }}>━ Debits</Text>
-              <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600' }}>━ Net Cash Flow</Text>
-            </View>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Top Expenses (Bar)</Text>
           </View>
 
-          <View style={{ alignItems: 'center', marginLeft: -20 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <BarChart
               data={{
-                labels: lineLabels,
-                datasets: [
-                  { data: lineNet }
-                ]
+                labels: ledgerArray.filter(l => l.debit > 0).slice(0, 5).map(l => l.name.substring(0, 8)),
+                datasets: [{ data: ledgerArray.filter(l => l.debit > 0).slice(0, 5).map(l => l.debit) }]
               }}
-              width={chartWidth > 800 ? (chartWidth - 80) / 2 : chartWidth - 80}
+              width={Math.max(300, ledgerArray.filter(l => l.debit > 0).slice(0, 5).length * 60)}
               height={220}
               yAxisLabel="₹"
               fromZero={true}
@@ -562,92 +555,57 @@ export function SavingsReportScreen({ route, navigation }) {
                 backgroundGradientFrom: "#EBECF0",
                 backgroundGradientTo: "#EBECF0",
                 decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(40, 140, 250, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(127, 140, 141, ${opacity})`,
+                color: (opacity = 1) => `rgba(149, 165, 166, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(44, 62, 80, ${opacity})`,
                 formatYLabel: formatShortCurrency
               }}
-              withInnerLines={true}
-              showBarTops={false}
-              showValuesOnTopOfBars={false}
-              style={{ borderRadius: 10 }}
+              verticalLabelRotation={30}
+              style={{ borderRadius: 10, paddingTop: 20 }}
             />
-          </View>
+          </ScrollView>
         </NeumorphicView>
 
-        {/* Expense Breakdown */}
+        {/* Expense Breakdown (Pie) */}
         <NeumorphicView style={{ flex: 1, minWidth: 320, padding: 24, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Expense Breakdown</Text>
-            <NeumorphicView inset={true} style={{ flexDirection: 'row', borderRadius: 20, padding: 2 }}>
-              <TouchableOpacity onPress={() => setSelectedChartType('Pie')} style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18, backgroundColor: selectedChartType === 'Pie' ? '#EBECF0' : 'transparent', ...Platform.select({ web: selectedChartType === 'Pie' ? { boxShadow: '2px 2px 5px #d1d9e6, -2px -2px 5px #ffffff' } : {} }) }}>
-                <Text style={{ color: '#34495e', fontSize: 12, fontWeight: '600' }}>Pie</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setSelectedChartType('Bar')} style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18, backgroundColor: selectedChartType === 'Bar' ? '#EBECF0' : 'transparent', ...Platform.select({ web: selectedChartType === 'Bar' ? { boxShadow: '2px 2px 5px #d1d9e6, -2px -2px 5px #ffffff' } : {} }) }}>
-                <Text style={{ color: '#34495e', fontSize: 12, fontWeight: '600' }}>Bar</Text>
-              </TouchableOpacity>
-            </NeumorphicView>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Expense Breakdown (Pie)</Text>
           </View>
 
-          {selectedChartType === 'Pie' ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              <View style={{ position: 'relative' }}>
-                <PieChart
-                  data={ledgerArray.filter(l => l.debit > 0).slice(0, 5).map((l, i) => ({
-                    name: '',
-                    population: l.debit,
-                    color: ["#7f8c8d", "#95a5a6", "#bdc3c7", "#d35400", "#c0392b"][i % 5],
-                    legendFontColor: "#7F7F7F",
-                    legendFontSize: 12
-                  }))}
-                  width={180}
-                  height={180}
-                  chartConfig={{ color: () => '#000' }}
-                  accessor={"population"}
-                  backgroundColor={"transparent"}
-                  paddingLeft={"45"}
-                  hasLegend={false}
-                  absolute
-                />
-                {/* Donut hole hack */}
-                <View style={{ position: 'absolute', top: 50, left: 50, width: 80, height: 80, borderRadius: 40, backgroundColor: '#EBECF0', ...Platform.select({ web: { boxShadow: 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff' } }) }} />
-              </View>
-
-              <View style={{ marginLeft: 20, flex: 1 }}>
-                {ledgerArray.filter(l => l.debit > 0).slice(0, 5).map((l, i) => (
-                  <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: ["#7f8c8d", "#95a5a6", "#bdc3c7", "#d35400", "#c0392b"][i % 5], marginRight: 10 }} />
-                      <Text style={{ fontSize: 13, color: '#242c34', fontWeight: '600', maxWidth: 100 }} numberOfLines={1}>{l.name}</Text>
-                    </View>
-                    <Text style={{ fontSize: 13, color: '#34495e' }}>{formatCurrency(l.debit)} ({((l.debit / totalDebits) * 100).toFixed(2)}%)</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <BarChart
-                data={{
-                  labels: ledgerArray.filter(l => l.debit > 0).slice(0, 5).map(l => l.name.substring(0, 8)),
-                  datasets: [{ data: ledgerArray.filter(l => l.debit > 0).slice(0, 5).map(l => l.debit) }]
-                }}
-                width={Math.max(300, ledgerArray.filter(l => l.debit > 0).slice(0, 5).length * 60)}
-                height={220}
-                yAxisLabel="₹"
-                fromZero={true}
-                chartConfig={{
-                  backgroundColor: "#EBECF0",
-                  backgroundGradientFrom: "#EBECF0",
-                  backgroundGradientTo: "#EBECF0",
-                  decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(149, 165, 166, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(44, 62, 80, ${opacity})`,
-                }}
-                verticalLabelRotation={30}
-                style={{ borderRadius: 10, paddingTop: 20 }}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ position: 'relative' }}>
+              <PieChart
+                data={ledgerArray.filter(l => l.debit > 0).slice(0, 5).map((l, i) => ({
+                  name: '',
+                  population: l.debit,
+                  color: ["#7f8c8d", "#95a5a6", "#bdc3c7", "#d35400", "#c0392b"][i % 5],
+                  legendFontColor: "#7F7F7F",
+                  legendFontSize: 12
+                }))}
+                width={180}
+                height={180}
+                chartConfig={{ color: () => '#000' }}
+                accessor={"population"}
+                backgroundColor={"transparent"}
+                paddingLeft={"45"}
+                hasLegend={false}
+                absolute
               />
-            </ScrollView>
-          )}
+              {/* Donut hole hack */}
+              <View style={{ position: 'absolute', top: 50, left: 50, width: 80, height: 80, borderRadius: 40, backgroundColor: '#EBECF0', ...Platform.select({ web: { boxShadow: 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff' } }) }} />
+            </View>
+
+            <View style={{ marginLeft: 20, flex: 1 }}>
+              {ledgerArray.filter(l => l.debit > 0).slice(0, 5).map((l, i) => (
+                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: ["#7f8c8d", "#95a5a6", "#bdc3c7", "#d35400", "#c0392b"][i % 5], marginRight: 10 }} />
+                    <Text style={{ fontSize: 13, color: '#242c34', fontWeight: '600', maxWidth: 100 }} numberOfLines={1}>{l.name}</Text>
+                  </View>
+                  <Text style={{ fontSize: 13, color: '#34495e' }}>{formatCurrency(l.debit)} ({((l.debit / totalDebits) * 100).toFixed(2)}%)</Text>
+                </View>
+              ))}
+            </View>
+          </View>
         </NeumorphicView>
       </View>
 
