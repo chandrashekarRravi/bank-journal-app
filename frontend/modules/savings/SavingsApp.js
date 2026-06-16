@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, TextInput, ScrollView, Dimensions } from "react-native";
 import { PieChart, BarChart, LineChart } from "react-native-chart-kit";
 import { generateSavingsPDF } from "./pdfGenerator/generateSavingsPDF";
+import * as XLSX from 'xlsx';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://192.168.0.7:3000";
 
@@ -253,24 +254,63 @@ export function SavingsReportScreen({ route, navigation }) {
 
   const exportToExcel = () => {
     if (Platform.OS === 'web') {
-      const header = "Date,Description,Narration,Party Name,Category,Type,Amount\n";
-      const rows = pieChartTransactions.map(t => {
-        const desc = (t.description || '').replace(/"/g, '""');
-        const nar = (t.narration || '').replace(/"/g, '""');
-        const party = (t.partyName || '').replace(/"/g, '""');
-        return `"${t.date}","${desc}","${nar}","${party}","${t.category || 'Misc'}","${t.type}","${t.amount}"`;
-      }).join("\n");
-      
-      const csv = header + rows;
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", "Savings_Transactions.csv");
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      try {
+        const wb = XLSX.utils.book_new();
+
+        // 1. Group transactions by Party Name (Ledgers)
+        const ledgers = {};
+        pieChartTransactions.forEach(t => {
+          const party = t.partyName || 'Misc';
+          if (!ledgers[party]) ledgers[party] = [];
+          ledgers[party].push({
+            Date: t.date,
+            Description: t.description || '',
+            Narration: t.narration || '',
+            'Party Name': party,
+            Category: t.category || 'Misc',
+            Type: t.type,
+            Amount: parseFloat(t.amount || 0)
+          });
+        });
+
+        // 2. Create Master Sheet with all transactions
+        const masterData = pieChartTransactions.map(t => ({
+          Date: t.date,
+          Description: t.description || '',
+          Narration: t.narration || '',
+          'Party Name': t.partyName || 'Misc',
+          Category: t.category || 'Misc',
+          Type: t.type,
+          Amount: parseFloat(t.amount || 0)
+        }));
+        const wsMaster = XLSX.utils.json_to_sheet(masterData);
+        XLSX.utils.book_append_sheet(wb, wsMaster, "All Transactions");
+
+        // 3. Create a separate sheet for each unique ledger
+        Object.keys(ledgers).forEach(party => {
+          // Clean sheet name (Excel limits: 31 chars, no special chars like ? * / \ [ ])
+          let sheetName = party.replace(/[\/\?\*\[\]\\]/g, '').substring(0, 31);
+          if (!sheetName) sheetName = "Unknown";
+          
+          // Ensure unique name if truncation caused a collision
+          let finalName = sheetName;
+          let counter = 1;
+          while (wb.SheetNames.includes(finalName)) {
+            const suffix = `_${counter}`;
+            finalName = sheetName.substring(0, 31 - suffix.length) + suffix;
+            counter++;
+          }
+
+          const ws = XLSX.utils.json_to_sheet(ledgers[party]);
+          XLSX.utils.book_append_sheet(wb, ws, finalName);
+        });
+
+        // 4. Download file
+        XLSX.writeFile(wb, "Savings_Ledgers.xlsx");
+      } catch (err) {
+        console.error("Error exporting to Excel:", err);
+        alert("Failed to export Excel. See console for details.");
+      }
     } else {
       alert("Excel export is supported on Web only for now.");
     }
