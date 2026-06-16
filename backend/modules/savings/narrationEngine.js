@@ -10,11 +10,18 @@ const extractPartyName = (description) => {
     if (partUpper.includes('CHQ:') || partUpper.includes('CHQ ')) continue;
 
     // If the part consists entirely of bank keywords, skip it
-    let cleanPart = partUpper.replace(/\b(WDL|TFR|TRF|DEP|UPI|UPIAR|UPIAB|UPID|NEFT|RTGS|IMPS|INB|INF|BULK|IFT|CR|DR|P2A|P2P|P2M|OPT|GST|ACH|ACHRE|CMS|POS|ECOM)\b/g, '').replace(/[^A-Z]/g, '').trim();
+    let cleanPart = partUpper.replace(/\b(WDL|TFR|TRF|DEP|UPI|UPIAR|UPIAB|UPID|NEFT|RTGS|IMPS|INB|INF|BULK|IFT|CR|DR|P2A|P2P|P2M|OPT|GST|ACH|ACHRE|CMS|POS|ECOM|MBS|AVG|MIN|BAL|CHRG)\b/g, '').replace(/[^A-Z]/g, '').trim();
     if (!cleanPart) continue;
 
-    if (part.includes('@')) {
-      let beforeAt = part.split('@')[0];
+    let potentialName = part;
+    if (/^TO\s+/i.test(potentialName)) {
+      potentialName = potentialName.substring(3).trim();
+    } else if (/^BY\s+/i.test(potentialName)) {
+      potentialName = potentialName.substring(3).trim();
+    }
+
+    if (potentialName.includes('@')) {
+      let beforeAt = potentialName.split('@')[0];
       if (beforeAt.includes(' ')) {
         return beforeAt.substring(0, beforeAt.lastIndexOf(' ')).trim();
       } else {
@@ -22,8 +29,8 @@ const extractPartyName = (description) => {
       }
     }
 
-    if (part.replace(/[^a-zA-Z]/g, '').length >= 3) {
-      return part;
+    if (potentialName.replace(/[^a-zA-Z]/g, '').length >= 3) {
+      return potentialName;
     }
   }
 
@@ -81,9 +88,13 @@ const generateNarration = (description, type, category, extractedPartyName) => {
     }
   }
 
-  // Handle other transfers
-  if (/\bNEFT\b|\bRTGS\b|\bIMPS\b/.test(desc)) {
-    const mode = /\bNEFT\b/.test(desc) ? 'NEFT' : /\bRTGS\b/.test(desc) ? 'RTGS' : 'IMPS';
+  if (category === 'Bank Charges' || /\bCHRG\b|\bMIN BAL\b/i.test(desc)) {
+    return 'Being bank charges deducted';
+  }
+
+  // Handle other transfers including MBS
+  if (/\bNEFT\b|\bRTGS\b|\bIMPS\b|\bMBS\b/.test(desc)) {
+    const mode = /\bNEFT\b/.test(desc) ? 'NEFT' : /\bRTGS\b/.test(desc) ? 'RTGS' : /\bMBS\b/.test(desc) ? 'MBS' : 'IMPS';
     if (type === 'credit') {
       return `Being amount received from ${partyName} via ${mode}`;
     } else {
@@ -91,11 +102,15 @@ const generateNarration = (description, type, category, extractedPartyName) => {
     }
   }
 
-  // Default fallbacks
+  // Default fallbacks with dynamic party name inclusion
   if (type === 'credit') {
-    return 'Being amount received';
+    return partyName && partyName !== 'Unknown' && partyName !== 'Party' 
+      ? `Being amount received from ${partyName}` 
+      : 'Being amount received';
   } else {
-    return 'Being amount paid';
+    return partyName && partyName !== 'Unknown' && partyName !== 'Party' 
+      ? `Being amount paid to ${partyName}` 
+      : 'Being amount paid';
   }
 };
 

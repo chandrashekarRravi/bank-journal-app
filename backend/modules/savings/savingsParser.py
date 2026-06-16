@@ -52,7 +52,7 @@ def parse_pdf(pdf_path):
                 # Check if line starts with a date (Transaction Start)
                 # Fix 3: Improved date matching for DD/MM/YYYY, DD-MM-YYYY, DD/MM/YY, DD Mon YYYY, DD-Mon-YYYY
                 date_match = re.search(r'^(?:\d+\s+)?(\d{1,2}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})', line)
-                txn_code_match = re.match(r'^(UPI|NEFT|RTGS|IMPS|ACH|CMS|TRF|CHQ)', line, re.IGNORECASE)
+                txn_code_match = re.match(r'^(UPI|NEFT|RTGS|IMPS|ACH|CMS|TRF|CHQ|MBS)', line, re.IGNORECASE)
                 
                 if txn_code_match and (current_trans is None or current_trans.get("has_amounts", False)):
                     # Starts with a txn code, and previous transaction is done (or this is the first)
