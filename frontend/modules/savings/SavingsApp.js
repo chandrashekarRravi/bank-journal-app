@@ -193,7 +193,8 @@ export function SavingsReportScreen({ route, navigation }) {
 
   // Chart Filters
   const [chartFilter, setChartFilter] = useState('All Time');
-  const [selectedChartType, setSelectedChartType] = useState('Pie');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   // Category Edit State
   const [expandedCategory, setExpandedCategory] = useState(null);
@@ -249,7 +250,7 @@ export function SavingsReportScreen({ route, navigation }) {
 
 
   const handleGeneratePDF = async () => {
-    await generateSavingsPDF(pieChartTransactions, currentMetadata, selectedChartType);
+    await generateSavingsPDF(pieChartTransactions, currentMetadata, 'Bar');
   };
 
   const exportToExcel = () => {
@@ -342,6 +343,17 @@ export function SavingsReportScreen({ route, navigation }) {
 
     if (chartFilter !== 'Custom') {
       pieChartTransactions = localTransactions.filter(t => parseDateString(t.date).getTime() >= filterTime);
+    } else {
+      let filtered = localTransactions;
+      if (customStartDate) {
+        const start = parseDateString(customStartDate).getTime();
+        if (!isNaN(start)) filtered = filtered.filter(t => parseDateString(t.date).getTime() >= start);
+      }
+      if (customEndDate) {
+        const end = parseDateString(customEndDate).getTime();
+        if (!isNaN(end)) filtered = filtered.filter(t => parseDateString(t.date).getTime() <= end + 86400000);
+      }
+      pieChartTransactions = filtered;
     }
   }
 
@@ -497,7 +509,7 @@ export function SavingsReportScreen({ route, navigation }) {
                 <Text style={{ color: '#27ae60', fontWeight: 'bold', fontSize: 11 }}>📊 Export Excel</Text>
               </NeumorphicView>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleGeneratePDF}>
+            <TouchableOpacity onPress={() => handleGeneratePDF('Bar')}>
               <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={{ color: '#242c34', fontWeight: 'bold', fontSize: 11 }}>↓ Download PDF</Text>
               </NeumorphicView>
@@ -507,12 +519,28 @@ export function SavingsReportScreen({ route, navigation }) {
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
           {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
             <TouchableOpacity key={f} onPress={() => setChartFilter(f)}>
-              <NeumorphicView inset={chartFilter === f} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
-                <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 11 }}>{f}</Text>
+              <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: chartFilter === f ? '#EBECF0' : 'transparent', ...Platform.select({ web: chartFilter === f ? { boxShadow: '2px 2px 5px #d1d9e6, -2px -2px 5px #ffffff' } : {} }) }}>
+                <Text style={{ color: '#34495e', fontSize: 12, fontWeight: '600' }}>{f}</Text>
               </NeumorphicView>
             </TouchableOpacity>
           ))}
         </View>
+        {chartFilter === 'Custom' && (
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <TextInput 
+              style={{ backgroundColor: '#fff', padding: 8, borderRadius: 6, fontSize: 12, width: 140, ...Platform.select({ web: { outlineStyle: 'none' }}) }} 
+              placeholder="Start (DD-MM-YYYY)" 
+              value={customStartDate} 
+              onChangeText={setCustomStartDate} 
+            />
+            <TextInput 
+              style={{ backgroundColor: '#fff', padding: 8, borderRadius: 6, fontSize: 12, width: 140, ...Platform.select({ web: { outlineStyle: 'none' }}) }} 
+              placeholder="End (DD-MM-YYYY)" 
+              value={customEndDate} 
+              onChangeText={setCustomEndDate} 
+            />
+          </View>
+        )}
       </View>
 
       {/* Category Ledgers */}
