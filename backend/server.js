@@ -163,7 +163,7 @@ const extractAccountName = (description) => {
   const parts = desc.split(/[/\\-]/).map(p => p.trim()).filter(p => p);
   
   if (parts.length >= 2) {
-    const ignoreWords = ['UPI', 'NEFT', 'RTGS', 'IMPS', 'INB', 'INF', 'BULK', 'IFT', 'CR', 'DR', 'P2A', 'P2P', 'P2M', 'OPT', 'GST', 'ACH', 'CMS', 'TRF'];
+    const ignoreWords = ['UPI', 'NEFT', 'RTGS', 'IMPS', 'INB', 'INF', 'BULK', 'IFT', 'CR', 'DR', 'P2A', 'P2P', 'P2M', 'OPT', 'GST', 'ACH', 'CMS', 'TRF', 'MBS', 'AVG', 'MIN', 'BAL', 'CHRG'];
     
     for (let i = 0; i < parts.length; i++) {
       let part = parts[i];
@@ -176,10 +176,17 @@ const extractAccountName = (description) => {
       if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/i.test(partUpper)) continue;
 
       if (ignoreWords.includes(partUpper)) continue;
+
+      let potentialName = part;
+      if (/^TO\s+/i.test(potentialName)) {
+        potentialName = potentialName.substring(3).trim();
+      } else if (/^BY\s+/i.test(potentialName)) {
+        potentialName = potentialName.substring(3).trim();
+      }
       
       // Looks like a valid name if it has a few letters
-      if (/[a-zA-Z]{3,}/.test(part)) {
-        let name = part.replace(/^[0-9A-Z]{8,20}\s*/, '').trim();
+      if (/[a-zA-Z]{3,}/.test(potentialName)) {
+        let name = potentialName.replace(/^[0-9A-Z]{8,20}\s*/, '').trim();
         if (name) return name;
       }
     }
@@ -248,29 +255,34 @@ app.post('/generate-entries', (req, res) => {
     else if (/\bIMPS\b/.test(descUpper)) mode = 'IMPS';
     else if (/\bUPI\b/.test(descUpper)) mode = 'UPI';
     else if (/\bOPT\b/.test(descUpper)) mode = 'OPT';
+    else if (/\bMBS\b/.test(descUpper)) mode = 'MBS';
     else if (/\bCHQ\b|\bCHEQUE\b/.test(descUpper)) mode = 'Cheque';
     
-    let refMatch = desc.match(/(?:NEFT|RTGS|IMPS|UPI|OPT|GST)[^a-zA-Z0-9]*([A-Z0-9]{8,25})/i);
+    let refMatch = desc.match(/(?:NEFT|RTGS|IMPS|UPI|OPT|GST|MBS)[^a-zA-Z0-9]*([A-Z0-9]{8,25})/i);
     let refNum = refMatch && refMatch[1] ? refMatch[1] : '';
 
-    let narration = type === 'credit' ? '(Being amount received' : '(Being amount paid';
-    
-    if (mode && mode !== 'Cheque') {
-      narration += ` via ${mode}`;
-    }
-    
-    if (refNum && mode !== 'Cheque') {
-      narration += ` ref no. ${refNum}`;
-    }
-
-    narration += ')';
-
+    let narration = '';
     if (/\bGST\b/.test(descUpper)) {
       narration = `(Being GST paid${refNum ? ' ref no. ' + refNum : ''})`;
+    } else if (/\bCHRG\b|\bMIN BAL\b/i.test(descUpper) || t.category === 'Bank Charges') {
+      narration = '(Being bank charges deducted)';
     } else if (mode === 'Cheque') {
       let chqMatch = desc.match(/(?:CHQ|CHEQUE)[^\d]*(\d+)/i);
       let chqNum = chqMatch && chqMatch[1] ? chqMatch[1] : '';
       narration = type === 'credit' ? `(Being cheque deposited${chqNum ? ' no. ' + chqNum : ''})` : `(Being cheque issued${chqNum ? ' no. ' + chqNum : ''})`;
+    } else {
+      let toFromText = '';
+      if (accountName && accountName !== 'Misc' && accountName !== 'unknown') {
+        toFromText = type === 'credit' ? ` from ${accountName}` : ` to ${accountName}`;
+      }
+      narration = type === 'credit' ? `(Being amount received${toFromText}` : `(Being amount paid${toFromText}`;
+      if (mode && mode !== 'Cheque') {
+        narration += ` via ${mode}`;
+      }
+      if (refNum && mode !== 'Cheque') {
+        narration += ` ref no. ${refNum}`;
+      }
+      narration += ')';
     }
 
     return {
