@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, Te
 import { PieChart, BarChart, LineChart } from "react-native-chart-kit";
 import { generateSavingsPDF } from "./pdfGenerator/generateSavingsPDF";
 import ExcelJS from 'exceljs/dist/exceljs.min.js';
-import { saveAs } from 'file-saver';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://192.168.0.7:3000";
 
@@ -364,7 +363,8 @@ export function SavingsReportScreen({ route, navigation }) {
         // 4. Download file
         const buffer = await wb.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        saveAs(blob, "Savings_Ledgers.xlsx");
+        const FileSaver = await import('file-saver');
+        FileSaver.saveAs(blob, "Savings_Ledgers.xlsx");
       } catch (err) {
         console.error("Error exporting to Excel:", err);
         alert("Failed to export Excel. See console for details.");
