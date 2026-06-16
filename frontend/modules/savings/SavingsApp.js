@@ -330,8 +330,10 @@ export function SavingsReportScreen({ route, navigation }) {
   };
 
   const formatShortCurrency = (val) => {
-    if (Math.abs(val) >= 1000) return '₹' + (val / 1000).toFixed(1) + 'k';
-    return '₹' + val.toFixed(0);
+    const num = parseFloat(val);
+    if (isNaN(num)) return val;
+    if (Math.abs(num) >= 1000) return '₹' + (num / 1000).toFixed(1) + 'k';
+    return '₹' + num.toFixed(0);
   };
 
   const savingsRate = totalCredits > 0 ? ((netCashFlow / totalCredits) * 100) : 0;
