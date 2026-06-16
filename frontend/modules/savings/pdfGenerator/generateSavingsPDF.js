@@ -9,12 +9,18 @@ export const generateSavingsPDF = async (transactions, metadata = {}, chartType 
     return;
   }
 
+  const formatCommas = (val) => {
+    const num = parseFloat((val || '0').toString().replace(/,/g, ''));
+    if (isNaN(num)) return val;
+    return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   const totalCredits = transactions
     .filter(t => t.type === 'Credit')
-    .reduce((sum, t) => sum + parseFloat(t.amount.replace(/,/g, '')), 0);
+    .reduce((sum, t) => sum + parseFloat((t.amount || '0').toString().replace(/,/g, '')), 0);
   const totalDebits = transactions
     .filter(t => t.type === 'Debit')
-    .reduce((sum, t) => sum + parseFloat(t.amount.replace(/,/g, '')), 0);
+    .reduce((sum, t) => sum + parseFloat((t.amount || '0').toString().replace(/,/g, '')), 0);
   const netCashFlow = totalCredits - totalDebits;
 
   const htmlRows = transactions.map((item, index) => {
@@ -32,7 +38,7 @@ export const generateSavingsPDF = async (transactions, metadata = {}, chartType 
         <div style="font-size: 14px; color: ${narrationColor}; font-weight: ${isCredit ? '600' : 'normal'};">${item.narration}</div>
       </td>
       <td>
-        <div style="text-align: right; font-weight: bold; color: ${amountColor};">₹${item.amount} ${amountSuffix}</div>
+        <div style="text-align: right; font-weight: bold; color: ${amountColor};">₹${formatCommas(item.amount)} ${amountSuffix}</div>
       </td>
     </tr>
   `}).join('');
@@ -41,7 +47,7 @@ export const generateSavingsPDF = async (transactions, metadata = {}, chartType 
   transactions.forEach(t => {
     const cat = t.category || "Misc";
     if (!categoryLedger[cat]) categoryLedger[cat] = { credit: 0, debit: 0, count: 0 };
-    const amt = parseFloat(t.amount.replace(/,/g, ''));
+    const amt = parseFloat((t.amount || '0').toString().replace(/,/g, ''));
     if (t.type === 'Credit') categoryLedger[cat].credit += amt;
     else categoryLedger[cat].debit += amt;
     categoryLedger[cat].count += 1;
@@ -54,9 +60,9 @@ export const generateSavingsPDF = async (transactions, metadata = {}, chartType 
       <tr>
         <td><strong>${cat}</strong></td>
         <td style="text-align: center;">${data.count}</td>
-        <td style="text-align: right; color: #27ae60;">₹${data.credit.toFixed(2)}</td>
-        <td style="text-align: right; color: #e74c3c;">₹${data.debit.toFixed(2)}</td>
-        <td style="text-align: right; font-weight: bold; color: ${netFlow >= 0 ? '#27ae60' : '#e74c3c'};">₹${netFlow.toFixed(2)}</td>
+        <td style="text-align: right; color: #27ae60;">₹${formatCommas(data.credit)}</td>
+        <td style="text-align: right; color: #e74c3c;">₹${formatCommas(data.debit)}</td>
+        <td style="text-align: right; font-weight: bold; color: ${netFlow >= 0 ? '#27ae60' : '#e74c3c'};">₹${formatCommas(netFlow)}</td>
       </tr>
     `;
   }).join('');
@@ -75,7 +81,7 @@ export const generateSavingsPDF = async (transactions, metadata = {}, chartType 
     return `
       <div style="display: flex; align-items: center; margin-bottom: 8px;">
         <div style="width: 14px; height: 14px; background-color: ${color}; margin-right: 10px; border-radius: 3px;"></div>
-        <span style="font-size: 13px; color: #333;"><strong>${l.name}</strong> - ₹${l.debit.toFixed(2)} (${percentage.toFixed(1)}%)</span>
+        <span style="font-size: 13px; color: #333;"><strong>${l.name}</strong> - ₹${formatCommas(l.debit)} (${percentage.toFixed(1)}%)</span>
       </div>
     `;
   }).join('');
@@ -215,7 +221,8 @@ export const generateSavingsPDF = async (transactions, metadata = {}, chartType 
 
         <div class="footer">
           Report generated automatically by Savings Analyzer module.<br>
-          For personal tracking and analysis only.
+          For personal tracking and analysis only.<br>
+          Developed by <a href="https://weandyoumarketing.com/" style="color: #4A90E2; text-decoration: none;">We and You Marketing</a>
         </div>
       </body>
     </html>

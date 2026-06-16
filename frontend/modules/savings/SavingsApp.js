@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, TextInput, ScrollView, Dimensions } from "react-native";
 import { PieChart, BarChart, LineChart } from "react-native-chart-kit";
 import { generateSavingsPDF } from "./pdfGenerator/generateSavingsPDF";
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://192.168.0.7:3000";
 
@@ -253,10 +254,11 @@ export function SavingsReportScreen({ route, navigation }) {
     await generateSavingsPDF(pieChartTransactions, currentMetadata, 'Bar');
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (Platform.OS === 'web') {
       try {
-        const wb = XLSX.utils.book_new();
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'Savings App';
 
         // 1. Group transactions by Party Name (Ledgers)
         const ledgers = {};
@@ -270,44 +272,99 @@ export function SavingsReportScreen({ route, navigation }) {
             'Party Name': party,
             Category: t.category || 'Misc',
             Type: t.type,
-            Amount: parseFloat(t.amount || 0)
+            Amount: parseFloat((t.amount || '0').toString().replace(/,/g, ''))
           });
         });
 
         // 2. Create Master Sheet with all transactions
-        const masterData = pieChartTransactions.map(t => ({
-          Date: t.date,
-          Description: t.description || '',
-          Narration: t.narration || '',
-          'Party Name': t.partyName || 'Misc',
-          Category: t.category || 'Misc',
-          Type: t.type,
-          Amount: parseFloat(t.amount || 0)
-        }));
-        const wsMaster = XLSX.utils.json_to_sheet(masterData);
-        XLSX.utils.book_append_sheet(wb, wsMaster, "All Transactions");
+        const wsMaster = wb.addWorksheet("All Transactions");
+        wsMaster.columns = [
+          { header: 'Date', key: 'Date', width: 15 },
+          { header: 'Description', key: 'Description', width: 20 },
+          { header: 'Narration', key: 'Narration', width: 30 },
+          { header: 'Party Name', key: 'Party Name', width: 25 },
+          { header: 'Category', key: 'Category', width: 15 },
+          { header: 'Type', key: 'Type', width: 10 },
+          { header: 'Amount', key: 'Amount', width: 15 }
+        ];
+
+        pieChartTransactions.forEach(t => {
+          wsMaster.addRow({
+            Date: t.date,
+            Description: t.description || '',
+            Narration: t.narration || '',
+            'Party Name': t.partyName || 'Misc',
+            Category: t.category || 'Misc',
+            Type: t.type,
+            Amount: parseFloat((t.amount || '0').toString().replace(/,/g, ''))
+          });
+        });
+        wsMaster.getRow(1).font = { bold: true };
+
+        // --- CHART GENERATION (QuickChart) ---
+        // Grab top 5 expenses to show as a bar chart
+        const debitData = Object.keys(ledgers).reduce((arr, key) => {
+           let debitSum = ledgers[key].filter(x => x.Type === 'Debit').reduce((sum, item) => sum + item.Amount, 0);
+           if (debitSum > 0) arr.push({ name: key, debit: debitSum });
+           return arr;
+        }, []).sort((a,b) => b.debit - a.debit).slice(0, 5);
+
+        if (debitData.length > 0) {
+          const chartConfig = {
+            type: 'bar',
+            data: {
+              labels: debitData.map(d => d.name.substring(0, 15)),
+              datasets: [{
+                label: 'Top Expenses (₹)',
+                data: debitData.map(d => d.debit),
+                backgroundColor: 'rgba(231, 76, 60, 0.8)'
+              }]
+            },
+            options: { title: { display: true, text: 'Top 5 Expense Ledgers' } }
+          };
+
+          const quickChartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=500&h=300`;
+          
+          try {
+            const response = await fetch(quickChartUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const imageId = wb.addImage({
+              buffer: arrayBuffer,
+              extension: 'png',
+            });
+            // Place the chart next to the data table (Column I)
+            wsMaster.addImage(imageId, {
+              tl: { col: 8, row: 1 },
+              ext: { width: 500, height: 300 }
+            });
+          } catch (chartErr) {
+            console.warn("Could not fetch chart image from quickchart.io:", chartErr);
+          }
+        }
 
         // 3. Create a separate sheet for each unique ledger
         Object.keys(ledgers).forEach(party => {
-          // Clean sheet name (Excel limits: 31 chars, no special chars like ? * / \ [ ])
           let sheetName = party.replace(/[\/\?\*\[\]\\]/g, '').substring(0, 31);
           if (!sheetName) sheetName = "Unknown";
           
-          // Ensure unique name if truncation caused a collision
           let finalName = sheetName;
           let counter = 1;
-          while (wb.SheetNames.includes(finalName)) {
+          while (wb.getWorksheet(finalName)) {
             const suffix = `_${counter}`;
             finalName = sheetName.substring(0, 31 - suffix.length) + suffix;
             counter++;
           }
 
-          const ws = XLSX.utils.json_to_sheet(ledgers[party]);
-          XLSX.utils.book_append_sheet(wb, ws, finalName);
+          const ws = wb.addWorksheet(finalName);
+          ws.columns = wsMaster.columns;
+          ledgers[party].forEach(row => ws.addRow(row));
+          ws.getRow(1).font = { bold: true };
         });
 
         // 4. Download file
-        XLSX.writeFile(wb, "Savings_Ledgers.xlsx");
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        saveAs(blob, "Savings_Ledgers.xlsx");
       } catch (err) {
         console.error("Error exporting to Excel:", err);
         alert("Failed to export Excel. See console for details.");
@@ -584,7 +641,7 @@ export function SavingsReportScreen({ route, navigation }) {
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                           <Text style={{ fontSize: 13, fontWeight: 'bold', color: t.type === 'Credit' ? '#27ae60' : '#e74c3c', marginRight: 12 }}>
-                            {t.type === 'Credit' ? '+' : '-'}₹{t.amount}
+                            {t.type === 'Credit' ? '+' : '-'}{formatCurrency(parseFloat((t.amount || '0').toString().replace(/,/g, '')))}
                           </Text>
                           <NeumorphicView style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
                             <Text style={{ fontSize: 11, color: '#7ebcf9', fontWeight: 'bold' }}>EDIT</Text>
