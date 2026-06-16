@@ -540,28 +540,40 @@ export function SavingsReportScreen({ route, navigation }) {
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Top Expenses (Bar)</Text>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <BarChart
-              data={{
-                labels: ledgerArray.filter(l => l.debit > 0).slice(0, 5).map(l => l.name.substring(0, 8)),
-                datasets: [{ data: ledgerArray.filter(l => l.debit > 0).slice(0, 5).map(l => l.debit) }]
-              }}
-              width={Math.max(300, ledgerArray.filter(l => l.debit > 0).slice(0, 5).length * 60)}
-              height={220}
-              yAxisLabel="₹"
-              fromZero={true}
-              chartConfig={{
-                backgroundColor: "#EBECF0",
-                backgroundGradientFrom: "#EBECF0",
-                backgroundGradientTo: "#EBECF0",
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(149, 165, 166, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(44, 62, 80, ${opacity})`,
-                formatYLabel: formatShortCurrency
-              }}
-              verticalLabelRotation={30}
-              style={{ borderRadius: 10, paddingTop: 20 }}
-            />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 220, paddingTop: 30, minWidth: 300, justifyContent: 'space-around', flex: 1 }}>
+              {ledgerArray.filter(l => l.debit > 0).slice(0, 5).map((l, i) => {
+                const maxDebit = Math.max(...ledgerArray.filter(x => x.debit > 0).slice(0, 5).map(x => x.debit));
+                const barHeight = maxDebit > 0 ? (l.debit / maxDebit) * 140 : 0;
+                const barColor = ["#288cfa", "#e74c3c", "#f39c12", "#27ae60", "#8e44ad"][i % 5];
+                
+                return (
+                  <View key={i} style={{ alignItems: 'center', width: 60, marginHorizontal: 10 }}>
+                    <Text style={{ fontSize: 11, color: '#34495e', fontWeight: 'bold', marginBottom: 6 }} numberOfLines={1}>
+                      {formatShortCurrency(l.debit)}
+                    </Text>
+                    <View style={{ 
+                      width: 36, 
+                      height: barHeight, 
+                      backgroundColor: barColor, 
+                      borderRadius: 6, 
+                      ...Platform.select({ web: { boxShadow: '2px 2px 6px #d1d9e6, -2px -2px 6px #ffffff' } }) 
+                    }} />
+                    <Text style={{ 
+                      fontSize: 10, 
+                      color: '#7f8c8d', 
+                      fontWeight: '600', 
+                      marginTop: 12, 
+                      transform: [{ rotate: '-25deg' }], 
+                      width: 70, 
+                      textAlign: 'center' 
+                    }} numberOfLines={1}>
+                      {l.name}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           </ScrollView>
         </NeumorphicView>
 
