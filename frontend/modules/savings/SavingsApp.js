@@ -342,18 +342,22 @@ export function SavingsReportScreen({ route, navigation }) {
         }
 
         // 3. Create a separate sheet for each unique ledger
+        const usedNames = new Set();
+        usedNames.add("all transactions"); // the master sheet
+        
         Object.keys(ledgers).forEach(party => {
-          let sheetName = party.replace(/[\/\?\*\[\]\\]/g, '').substring(0, 31);
+          let sheetName = party.replace(/[\/\?\*\[\]\\]/g, '').trim().substring(0, 31);
           if (!sheetName) sheetName = "Unknown";
           
           let finalName = sheetName;
           let counter = 1;
-          while (wb.getWorksheet(finalName)) {
+          while (usedNames.has(finalName.toLowerCase())) {
             const suffix = `_${counter}`;
             finalName = sheetName.substring(0, 31 - suffix.length) + suffix;
             counter++;
           }
 
+          usedNames.add(finalName.toLowerCase());
           const ws = wb.addWorksheet(finalName);
           ws.columns = wsMaster.columns;
           ledgers[party].forEach(row => ws.addRow(row));
