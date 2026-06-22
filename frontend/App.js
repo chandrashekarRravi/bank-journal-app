@@ -77,29 +77,60 @@ function UploadScreen({ navigation }) {
 
   // Compare Statements State
   const [compareModalVisible, setCompareModalVisible] = useState(false);
-  const [compareFile1, setCompareFile1] = useState(null);
-  const [compareFile2, setCompareFile2] = useState(null);
+  const [compareFiles, setCompareFiles] = useState([]);
   const [isComparing, setIsComparing] = useState(false);
   const [compareResults, setCompareResults] = useState(null);
+  const [isCompareDragActive, setIsCompareDragActive] = useState(false);
 
-  const handlePickCompareFile = async (setFile) => {
+  const handlePickCompareFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', '*/*'],
         copyToCacheDirectory: true,
+        multiple: true,
       });
-      if (result.type === 'success' || (result.assets && result.assets.length > 0)) {
-        const file = result.assets ? result.assets[0] : result;
-        setFile(file);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setCompareFiles(prev => [...prev, ...result.assets]);
       }
     } catch (err) {
       console.warn("Failed to pick file:", err);
     }
   };
 
+  const handleRemoveCompareFile = (index) => {
+    setCompareFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const onCompareDrop = (e) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault();
+      setIsCompareDragActive(false);
+      if (e.dataTransfer && e.dataTransfer.files) {
+        const filesArray = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
+        if (filesArray.length > 0) {
+          setCompareFiles(prev => [...prev, ...filesArray]);
+        }
+      }
+    }
+  };
+
+  const onCompareDragOver = (e) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault();
+      setIsCompareDragActive(true);
+    }
+  };
+
+  const onCompareDragLeave = (e) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault();
+      setIsCompareDragActive(false);
+    }
+  };
+
   const handleCompareStatements = async () => {
-    if (!compareFile1 || !compareFile2) {
-      alert("Please select both statements.");
+    if (compareFiles.length < 2) {
+      alert("Please select at least two statements.");
       return;
     }
     
@@ -111,24 +142,23 @@ function UploadScreen({ navigation }) {
     setIsComparing(true);
     try {
       const getBuffer = async (file) => {
-        const response = await fetch(file.uri);
-        return await response.arrayBuffer();
+        if (file.uri) {
+          const response = await fetch(file.uri);
+          return await response.arrayBuffer();
+        } else {
+          return await file.arrayBuffer(); // Native Web File object
+        }
       };
 
-      const buffer1 = await getBuffer(compareFile1);
-      const buffer2 = await getBuffer(compareFile2);
-
-      const wb1 = new ExcelJS.Workbook();
-      await wb1.xlsx.load(buffer1);
-      const ws1 = wb1.getWorksheet("All Transactions") || wb1.worksheets[0];
-
-      const wb2 = new ExcelJS.Workbook();
-      await wb2.xlsx.load(buffer2);
-      const ws2 = wb2.getWorksheet("All Transactions") || wb2.worksheets[0];
-
+      const buffers = await Promise.all(compareFiles.map(f => getBuffer(f)));
+      
       const ledgersMap = {};
 
-      const processSheet = (ws, bankKey) => {
+      for (let i = 0; i < buffers.length; i++) {
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buffers[i]);
+        const ws = wb.getWorksheet("All Transactions") || wb.worksheets[0];
+
         let headers = [];
         let partyCol = -1;
         let amountCol = -1;
@@ -146,24 +176,19 @@ function UploadScreen({ navigation }) {
             let amt = parseFloat(row.values[amountCol]);
             if (isNaN(amt)) return;
             
-            if (!ledgersMap[party]) ledgersMap[party] = { b1: 0, b2: 0 };
-            ledgersMap[party][bankKey] += amt;
+            if (!ledgersMap[party]) ledgersMap[party] = { total: 0 };
+            ledgersMap[party][`b${i}`] = (ledgersMap[party][`b${i}`] || 0) + amt;
+            ledgersMap[party].total += amt;
           }
         });
-      };
-
-      processSheet(ws1, 'b1');
-      processSheet(ws2, 'b2');
+      }
 
       const results = Object.keys(ledgersMap).map(party => {
-        const b1 = ledgersMap[party].b1;
-        const b2 = ledgersMap[party].b2;
-        return {
-          ledger: party,
-          b1: b1,
-          b2: b2,
-          total: b1 + b2
-        };
+        const item = { ledger: party, total: ledgersMap[party].total };
+        compareFiles.forEach((_, i) => {
+          item[`b${i}`] = ledgersMap[party][`b${i}`] || 0;
+        });
+        return item;
       });
 
       // Sort alphabetically or by total? Let's sort by total descending
@@ -187,18 +212,16 @@ function UploadScreen({ navigation }) {
 
       outWs.columns = [
         { header: 'Ledger Name', key: 'ledger', width: 25 },
-        { header: compareFile1?.name || 'Bank 1 Amount', key: 'b1', width: 20 },
-        { header: compareFile2?.name || 'Bank 2 Amount', key: 'b2', width: 20 },
+        ...compareFiles.map((f, i) => ({ header: f.name || `Bank ${i + 1} Amount`, key: `b${i}`, width: 20 })),
         { header: 'Total Amount', key: 'total', width: 20 },
       ];
 
       compareResults.forEach(item => {
-        outWs.addRow({
-          ledger: item.ledger,
-          b1: item.b1,
-          b2: item.b2,
-          total: item.total
+        const row = { ledger: item.ledger, total: item.total };
+        compareFiles.forEach((_, i) => {
+          row[`b${i}`] = item[`b${i}`];
         });
+        outWs.addRow(row);
       });
       outWs.getRow(1).font = { bold: true };
 
@@ -210,8 +233,7 @@ function UploadScreen({ navigation }) {
       // Close modal and reset after download
       setCompareModalVisible(false);
       setCompareResults(null);
-      setCompareFile1(null);
-      setCompareFile2(null);
+      setCompareFiles([]);
     } catch (err) {
       console.error("Download error:", err);
       alert("Failed to download Excel.");
@@ -368,68 +390,78 @@ function UploadScreen({ navigation }) {
           <View style={[styles.modalContent, { width: '90%', maxWidth: compareResults ? 700 : 450, borderRadius: 16, padding: 30, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 }]} onStartShouldSetResponder={() => true}>
             
             {!compareResults ? (
-              <>
+              <View
+                {...Platform.select({ web: { onDrop: onCompareDrop, onDragOver: onCompareDragOver, onDragLeave: onCompareDragLeave } })}
+              >
                 <Text style={styles.modalTitle}>Compare Bank Statements</Text>
                 <Text style={{ color: '#7f8c8d', fontSize: 13, marginBottom: 20, textAlign: 'center' }}>
-                  Select two Excel statements generated by this app to compare ledger totals side-by-side.
+                  Select two or more Excel statements to compare ledger totals. You can select them or drag and drop files here.
                 </Text>
 
-                {/* Statement 1 Input */}
-                <View style={{ marginBottom: 15, width: '100%' }}>
-                  <Text style={{ fontSize: 12, color: '#34495e', fontWeight: '600', marginBottom: 5 }}>Statement 1 (e.g. Previous Month)</Text>
-                  <TouchableOpacity onPress={() => handlePickCompareFile(setCompareFile1)}>
-                    <View style={{ padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: compareFile1 ? '#e8f5e9' : '#f8f9fa', borderWidth: 1, borderColor: compareFile1 ? '#27ae60' : '#e0e0e0' }}>
-                      <Text style={{ color: compareFile1 ? '#27ae60' : '#7f8c8d', fontSize: 14 }} numberOfLines={1}>
-                        {compareFile1 ? compareFile1.name : "Select Excel File..."}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity onPress={handlePickCompareFile}>
+                  <View style={{ padding: 20, borderRadius: 12, alignItems: 'center', backgroundColor: isCompareDragActive ? '#e8f5e9' : '#f8f9fa', borderWidth: 2, borderStyle: 'dashed', borderColor: isCompareDragActive ? '#27ae60' : '#bdc3c7', marginBottom: 20 }}>
+                    <Text style={{ color: '#34495e', fontSize: 16, fontWeight: '600' }}>
+                      {isCompareDragActive ? "Drop Excel files here..." : "Drag & Drop files or Click to Select"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
 
-                {/* Statement 2 Input */}
-                <View style={{ marginBottom: 25, width: '100%' }}>
-                  <Text style={{ fontSize: 12, color: '#34495e', fontWeight: '600', marginBottom: 5 }}>Statement 2 (e.g. Current Month)</Text>
-                  <TouchableOpacity onPress={() => handlePickCompareFile(setCompareFile2)}>
-                    <View style={{ padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: compareFile2 ? '#e8f5e9' : '#f8f9fa', borderWidth: 1, borderColor: compareFile2 ? '#27ae60' : '#e0e0e0' }}>
-                      <Text style={{ color: compareFile2 ? '#27ae60' : '#7f8c8d', fontSize: 14 }} numberOfLines={1}>
-                        {compareFile2 ? compareFile2.name : "Select Excel File..."}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
+                {compareFiles.length > 0 && (
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600', marginBottom: 8 }}>Selected Files ({compareFiles.length}):</Text>
+                    <ScrollView style={{ maxHeight: 150 }}>
+                      {compareFiles.map((file, idx) => (
+                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ecf0f1', padding: 10, borderRadius: 8, marginBottom: 8 }}>
+                          <Text style={{ color: '#2c3e50', fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
+                          <TouchableOpacity onPress={() => handleRemoveCompareFile(idx)} style={{ padding: 5 }}>
+                            <Text style={{ color: '#e74c3c', fontWeight: 'bold' }}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
 
                 <TouchableOpacity
-                  style={[styles.button, { width: '100%', backgroundColor: (!compareFile1 || !compareFile2) ? '#bdc3c7' : '#27ae60' }]}
+                  style={[styles.button, { width: '100%', backgroundColor: compareFiles.length < 2 ? '#bdc3c7' : '#27ae60' }]}
                   onPress={handleCompareStatements}
-                  disabled={!compareFile1 || !compareFile2 || isComparing}
+                  disabled={compareFiles.length < 2 || isComparing}
                 >
                   <Text style={styles.buttonText}>{isComparing ? "Processing..." : "Generate Preview"}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={{ marginTop: 15, alignSelf: 'center' }} onPress={() => setCompareModalVisible(false)}>
+                <TouchableOpacity style={{ marginTop: 15, alignSelf: 'center' }} onPress={() => { setCompareModalVisible(false); setCompareFiles([]); }}>
                   <Text style={{ color: '#e74c3c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
                 </TouchableOpacity>
-              </>
+              </View>
             ) : (
               <>
                 <Text style={styles.modalTitle}>Comparison Preview</Text>
                 
                 <View style={{ maxHeight: 300, borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, marginBottom: 20 }}>
                   <ScrollView>
-                    <View style={{ flexDirection: 'row', backgroundColor: '#f8f9fa', padding: 10, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
-                      <Text style={{ flex: 2, fontWeight: 'bold', color: '#2c3e50', fontSize: 12 }}>Ledger Name</Text>
-                      <Text style={{ flex: 1, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }}>Bank 1</Text>
-                      <Text style={{ flex: 1, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }}>Bank 2</Text>
-                      <Text style={{ flex: 1, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }}>Total</Text>
-                    </View>
-                    {compareResults.map((item, idx) => (
-                      <View key={idx} style={{ flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }}>
-                        <Text style={{ flex: 2, color: '#34495e', fontSize: 12 }} numberOfLines={1}>{item.ledger}</Text>
-                        <Text style={{ flex: 1, color: '#7f8c8d', fontSize: 12, textAlign: 'right' }}>{item.b1.toFixed(2)}</Text>
-                        <Text style={{ flex: 1, color: '#7f8c8d', fontSize: 12, textAlign: 'right' }}>{item.b2.toFixed(2)}</Text>
-                        <Text style={{ flex: 1, color: '#27ae60', fontWeight: 'bold', fontSize: 12, textAlign: 'right' }}>{item.total.toFixed(2)}</Text>
+                    <ScrollView horizontal>
+                      <View>
+                        <View style={{ flexDirection: 'row', backgroundColor: '#f8f9fa', padding: 10, borderBottomWidth: 1, borderBottomColor: '#e0e0e0', minWidth: 400 }}>
+                          <Text style={{ width: 150, fontWeight: 'bold', color: '#2c3e50', fontSize: 12 }}>Ledger Name</Text>
+                          {compareFiles.map((f, i) => (
+                            <Text key={i} style={{ width: 100, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }} numberOfLines={1}>
+                              {f.name || `Bank ${i+1}`}
+                            </Text>
+                          ))}
+                          <Text style={{ width: 100, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }}>Total</Text>
+                        </View>
+                        {compareResults.map((item, idx) => (
+                          <View key={idx} style={{ flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', minWidth: 400 }}>
+                            <Text style={{ width: 150, color: '#34495e', fontSize: 12 }} numberOfLines={1}>{item.ledger}</Text>
+                            {compareFiles.map((_, i) => (
+                              <Text key={i} style={{ width: 100, color: '#7f8c8d', fontSize: 12, textAlign: 'right' }}>{item[`b${i}`].toFixed(2)}</Text>
+                            ))}
+                            <Text style={{ width: 100, color: '#27ae60', fontWeight: 'bold', fontSize: 12, textAlign: 'right' }}>{item.total.toFixed(2)}</Text>
+                          </View>
+                        ))}
                       </View>
-                    ))}
+                    </ScrollView>
                   </ScrollView>
                 </View>
 
