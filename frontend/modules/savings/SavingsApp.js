@@ -194,15 +194,6 @@ export function SavingsReportScreen({ route, navigation }) {
 
   // Chart Filters
   const [chartFilter, setChartFilter] = useState('All Time');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
-
-  // Compare Statements State
-  const [compareModalVisible, setCompareModalVisible] = useState(false);
-  const [compareFile1, setCompareFile1] = useState(null);
-  const [compareFile2, setCompareFile2] = useState(null);
-  const [isComparing, setIsComparing] = useState(false);
-
   // Category Edit State
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [isLedgersOpen, setIsLedgersOpen] = useState(false);
@@ -380,127 +371,6 @@ export function SavingsReportScreen({ route, navigation }) {
         console.error("Error exporting to Excel:", err);
         alert("Failed to export Excel. See console for details.");
       }
-    } else {
-      alert("Excel export is supported on Web only for now.");
-    }
-  };
-
-  const handlePickCompareFile = async (setFile) => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', '*/*'],
-        copyToCacheDirectory: true,
-      });
-      if (result.type === 'success' || (result.assets && result.assets.length > 0)) {
-        const file = result.assets ? result.assets[0] : result;
-        setFile(file);
-      }
-    } catch (err) {
-      console.warn("Failed to pick file:", err);
-    }
-  };
-
-  const handleCompareStatements = async () => {
-    if (!compareFile1 || !compareFile2) {
-      alert("Please select both statements.");
-      return;
-    }
-    
-    if (Platform.OS !== 'web') {
-      alert("Comparison is supported on Web only for now.");
-      return;
-    }
-
-    setIsComparing(true);
-    try {
-      // Helper to parse file to array buffer
-      const getBuffer = async (file) => {
-        const response = await fetch(file.uri);
-        return await response.arrayBuffer();
-      };
-
-      const buffer1 = await getBuffer(compareFile1);
-      const buffer2 = await getBuffer(compareFile2);
-
-      const wb1 = new ExcelJS.Workbook();
-      await wb1.xlsx.load(buffer1);
-      const ws1 = wb1.getWorksheet("All Transactions") || wb1.worksheets[0];
-
-      const wb2 = new ExcelJS.Workbook();
-      await wb2.xlsx.load(buffer2);
-      const ws2 = wb2.getWorksheet("All Transactions") || wb2.worksheets[0];
-
-      const ledgersMap = {}; // { 'Party Name': { b1: amount, b2: amount } }
-
-      // Helper to process sheet
-      const processSheet = (ws, bankKey) => {
-        let headers = [];
-        let partyCol = -1;
-        let amountCol = -1;
-        let typeCol = -1; // If type exists
-
-        ws.eachRow((row, rowNumber) => {
-          if (rowNumber === 1) {
-            headers = row.values;
-            partyCol = headers.findIndex(h => h === 'Party Name' || h === 'Ledger');
-            amountCol = headers.findIndex(h => h === 'Amount');
-            typeCol = headers.findIndex(h => h === 'Type');
-            return;
-          }
-
-          if (partyCol !== -1 && amountCol !== -1) {
-            const party = row.values[partyCol] || 'Misc';
-            let amt = parseFloat(row.values[amountCol]);
-            if (isNaN(amt)) return;
-            
-            // If there's a type column and it's Credit, optionally subtract or ignore.
-            // The user wants 3 columns, we'll just sum absolute amounts or assume debits.
-            // Let's sum absolute amounts.
-            if (!ledgersMap[party]) ledgersMap[party] = { b1: 0, b2: 0 };
-            ledgersMap[party][bankKey] += amt;
-          }
-        });
-      };
-
-      processSheet(ws1, 'b1');
-      processSheet(ws2, 'b2');
-
-      // Create new workbook for output
-      const outWb = new ExcelJS.Workbook();
-      outWb.creator = 'Savings App';
-      const outWs = outWb.addWorksheet("Comparison");
-
-      outWs.columns = [
-        { header: 'Ledger Name', key: 'ledger', width: 25 },
-        { header: compareFile1.name || 'Bank 1 Amount', key: 'b1', width: 20 },
-        { header: compareFile2.name || 'Bank 2 Amount', key: 'b2', width: 20 },
-      ];
-
-      Object.keys(ledgersMap).forEach(party => {
-        outWs.addRow({
-          ledger: party,
-          b1: ledgersMap[party].b1,
-          b2: ledgersMap[party].b2
-        });
-      });
-      outWs.getRow(1).font = { bold: true };
-
-      const outBuffer = await outWb.xlsx.writeBuffer();
-      const blob = new Blob([outBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const FileSaver = require('file-saver');
-      FileSaver.saveAs(blob, "Statement_Comparison.xlsx");
-      
-      setCompareModalVisible(false);
-      setCompareFile1(null);
-      setCompareFile2(null);
-    } catch (err) {
-      console.error("Comparison error:", err);
-      alert("Failed to compare statements. Check if they have the correct columns.");
-    } finally {
-      setIsComparing(false);
-    }
-  };
-
   const parseDateString = (dateStr) => {
     if (!dateStr) return new Date(0);
     const parts = dateStr.split(/[-/]/);
@@ -611,18 +481,11 @@ export function SavingsReportScreen({ route, navigation }) {
       {/* Top Header */}
       <View style={{ marginBottom: 20 }}>
         <Text style={{ fontSize: 20, fontWeight: '700', color: '#242c34', marginBottom: 16 }}>Savings Account Summary</Text>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <TouchableOpacity onPress={handleGeneratePDF} style={{ flex: 1, marginRight: 10 }}>
-            <NeumorphicView style={{ paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 14 }}>↓ Export PDF</Text>
-            </NeumorphicView>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setCompareModalVisible(true)} style={{ flex: 1, marginLeft: 10 }}>
-            <NeumorphicView style={{ paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 14 }}>⇄ Compare Statements</Text>
-            </NeumorphicView>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={handleGeneratePDF} style={{ width: '100%' }}>
+          <NeumorphicView style={{ paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 14 }}>↓ Export / Share PDF</Text>
+          </NeumorphicView>
+        </TouchableOpacity>
       </View>
 
       {/* Main Top Card */}
@@ -882,54 +745,6 @@ export function SavingsReportScreen({ route, navigation }) {
 
 
 
-
-      {/* Compare Statements Modal */}
-      <Modal visible={compareModalVisible} transparent={true} animationType="fade" onRequestClose={() => setCompareModalVisible(false)}>
-        <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={() => setCompareModalVisible(false)}>
-          <View style={[styles.modalContent, { width: '90%', maxWidth: 450, borderRadius: 16, padding: 30, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 }]} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Compare Bank Statements</Text>
-            <Text style={{ color: '#7f8c8d', fontSize: 13, marginBottom: 20, textAlign: 'center' }}>
-              Select two Excel statements generated by this app to compare ledger totals side-by-side.
-            </Text>
-
-            {/* Statement 1 Input */}
-            <View style={{ marginBottom: 15, width: '100%' }}>
-              <Text style={{ fontSize: 12, color: '#34495e', fontWeight: '600', marginBottom: 5 }}>Statement 1 (e.g. Previous Month)</Text>
-              <TouchableOpacity onPress={() => handlePickCompareFile(setCompareFile1)}>
-                <NeumorphicView style={{ padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: compareFile1 ? '#e8f5e9' : undefined }}>
-                  <Text style={{ color: compareFile1 ? '#27ae60' : '#7f8c8d', fontSize: 14 }} numberOfLines={1}>
-                    {compareFile1 ? compareFile1.name : "Select Excel File..."}
-                  </Text>
-                </NeumorphicView>
-              </TouchableOpacity>
-            </View>
-
-            {/* Statement 2 Input */}
-            <View style={{ marginBottom: 25, width: '100%' }}>
-              <Text style={{ fontSize: 12, color: '#34495e', fontWeight: '600', marginBottom: 5 }}>Statement 2 (e.g. Current Month)</Text>
-              <TouchableOpacity onPress={() => handlePickCompareFile(setCompareFile2)}>
-                <NeumorphicView style={{ padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: compareFile2 ? '#e8f5e9' : undefined }}>
-                  <Text style={{ color: compareFile2 ? '#27ae60' : '#7f8c8d', fontSize: 14 }} numberOfLines={1}>
-                    {compareFile2 ? compareFile2.name : "Select Excel File..."}
-                  </Text>
-                </NeumorphicView>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, styles.fullWidthButton, { backgroundColor: (!compareFile1 || !compareFile2) ? '#bdc3c7' : '#27ae60' }]}
-              onPress={handleCompareStatements}
-              disabled={!compareFile1 || !compareFile2 || isComparing}
-            >
-              <Text style={styles.buttonText}>{isComparing ? "Generating..." : "Generate Comparison Excel"}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ marginTop: 15 }} onPress={() => setCompareModalVisible(false)}>
-              <Text style={{ color: '#e74c3c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       {/* Category Modal */}
       <Modal visible={modalVisible} transparent={true} animationType="slide" onRequestClose={() => setModalVisible(false)}>
