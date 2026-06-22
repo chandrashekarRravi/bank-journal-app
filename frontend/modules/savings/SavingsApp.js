@@ -371,6 +371,11 @@ export function SavingsReportScreen({ route, navigation }) {
         console.error("Error exporting to Excel:", err);
         alert("Failed to export Excel. See console for details.");
       }
+    } else {
+      alert("Excel export is supported on Web only for now.");
+    }
+  };
+
   const parseDateString = (dateStr) => {
     if (!dateStr) return new Date(0);
     const parts = dateStr.split(/[-/]/);
