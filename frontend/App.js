@@ -24,7 +24,7 @@ import ExcelJS from 'exceljs/dist/exceljs.min.js';
 
 // API Configuration
 // Pointing back to your laptop via local IP for dev, or env variable for production || "http://192.168.0.6:3000"   || "https://bank-journal-backend.onrender.com"
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://10.61.119.38:8081";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://192.168.0.7:3000";
 const Stack = createNativeStackNavigator();
 
 import { SavingsTransactionsScreen, SavingsReportScreen } from "./modules/savings/SavingsApp";
@@ -1058,10 +1058,10 @@ function LedgersScreen({ route }) {
           const amount = parseFloat(entry.amount);
           if (entry.debitAccount === acc) {
             totalDr += amount;
-            rows += `<tr><td class="center">${entry.date}</td><td>${entry.creditAccount}</td><td class="right">${amount}</td><td></td></tr>`;
+            rows += `<tr><td class="center">${entry.date}</td><td>To ${entry.creditAccount} A/c<br/><span style="font-size:10px; color:#555;">${entry.narration || ''}</span></td><td class="right">${amount}</td><td></td></tr>`;
           } else if (entry.creditAccount === acc) {
             totalCr += amount;
-            rows += `<tr><td class="center">${entry.date}</td><td>${entry.debitAccount}</td><td></td><td class="right">${amount}</td></tr>`;
+            rows += `<tr><td class="center">${entry.date}</td><td>By ${entry.debitAccount} A/c<br/><span style="font-size:10px; color:#555;">${entry.narration || ''}</span></td><td></td><td class="right">${amount}</td></tr>`;
           }
         });
 
@@ -1071,7 +1071,7 @@ function LedgersScreen({ route }) {
         htmlContent += `
           <div class="account-header">ACCOUNT : ${acc.toUpperCase()}</div>
           <table>
-            <tr><th style="width:15%">Date</th><th style="width:45%">Narration</th><th style="width:20%" class="right">Dr</th><th style="width:20%" class="right">Cr</th></tr>
+            <tr><th style="width:15%">Date</th><th style="width:45%">Particulars</th><th style="width:20%" class="right">Dr</th><th style="width:20%" class="right">Cr</th></tr>
             ${rows}
             <tr><td colspan="2" class="right bold">Total</td><td class="right bold">${totalDr}</td><td class="right bold">${totalCr}</td></tr>
             <tr><td colspan="4" class="right bold">Closing Balance : ${balStr}</td></tr>
@@ -1106,10 +1106,20 @@ function LedgersScreen({ route }) {
       const amount = parseFloat(entry.amount);
       if (entry.debitAccount === activeTab) {
         totalDr += amount;
-        ledgerEntries.push({ date: entry.date, narration: entry.creditAccount, dr: amount, cr: '' });
+        ledgerEntries.push({ 
+          date: entry.date, 
+          narration: `To ${entry.creditAccount} A/c\n${entry.narration || ''}`, 
+          dr: amount, 
+          cr: '' 
+        });
       } else if (entry.creditAccount === activeTab) {
         totalCr += amount;
-        ledgerEntries.push({ date: entry.date, narration: entry.debitAccount, dr: '', cr: amount });
+        ledgerEntries.push({ 
+          date: entry.date, 
+          narration: `By ${entry.debitAccount} A/c\n${entry.narration || ''}`, 
+          dr: '', 
+          cr: amount 
+        });
       }
     });
 
@@ -1123,7 +1133,7 @@ function LedgersScreen({ route }) {
         </View>
         <View style={styles.ledgerTableHeader}>
           <Text style={[styles.ledgerCell, { flex: 2, fontWeight: 'bold' }]}>Date</Text>
-          <Text style={[styles.ledgerCell, { flex: 3, fontWeight: 'bold' }]}>Narration</Text>
+          <Text style={[styles.ledgerCell, { flex: 3, fontWeight: 'bold' }]}>Particulars</Text>
           <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', fontWeight: 'bold' }]}>Dr</Text>
           <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', fontWeight: 'bold' }]}>Cr</Text>
         </View>
