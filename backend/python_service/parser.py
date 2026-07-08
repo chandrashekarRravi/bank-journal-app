@@ -51,7 +51,10 @@ def parse_pdf(pdf_path):
                     continue
 
                 # Check if line starts with a date (Transaction Start)
-                date_match = re.search(r'^(?:\d+\s+)?(\d{1,2}[/\-. ](?:[A-Za-z]{3,8}|\d{1,2})[/\-. ]\d{2,4})', line)
+                # IMPORTANT: require alphabetic month (e.g. APR, JAN) so that dates
+                # embedded inside UPI descriptions like "02/04/2025 09:12:22" do NOT
+                # accidentally trigger a new-transaction split.
+                date_match = re.search(r'^(?:\d+\s+)?(\d{1,2}[/\-. ][A-Za-z]{3,8}[/\-. ]\d{2,4})', line)
                 txn_code_match = re.match(r'^(UPI|NEFT|RTGS|IMPS|ACH|CMS|TRF|CHQ)', line, re.IGNORECASE)
                 
                 if txn_code_match and (current_trans is None or current_trans.get("has_amounts", False)):
@@ -106,7 +109,32 @@ def parse_pdf(pdf_path):
             amounts_found = re.findall(r'([-]?\d[\d,]*\.\d{2})\s*(Cr|Dr|CR|DR|Cr\.|Dr\.)?', full_block, re.IGNORECASE)
             
             if amounts_found:
-                if len(amounts_found) >= 2:
+                if len(amounts_found) >= 3:
+                    # 3-column layout: WITHDRAWS | DEPOSIT | BALANCE
+                    withdraw_str = amounts_found[-3][0]
+                    deposit_str  = amounts_found[-2][0]
+                    bal_str      = amounts_found[-1][0]
+                    withdraw_val = float(withdraw_str.replace(',', '').replace('-', ''))
+                    deposit_val  = float(deposit_str.replace(',', '').replace('-', ''))
+                    trans["balance_val"] = float(bal_str.replace(',', '').replace('-', ''))
+                    if deposit_val > 0 and withdraw_val == 0:
+                        trans["amount"]     = deposit_str.replace('-', '')
+                        trans["amount_val"] = deposit_val
+                        trans["type"]       = "credit"
+                    elif withdraw_val > 0 and deposit_val == 0:
+                        trans["amount"]     = withdraw_str.replace('-', '')
+                        trans["amount_val"] = withdraw_val
+                        trans["type"]       = "debit"
+                    elif withdraw_val > 0:
+                        # Both non-zero (rare) - treat withdraw as debit
+                        trans["amount"]     = withdraw_str.replace('-', '')
+                        trans["amount_val"] = withdraw_val
+                        trans["type"]       = "debit"
+                    else:
+                        # Both zero - use balance as amount, keep unknown
+                        trans["amount"]     = bal_str.replace('-', '')
+                        trans["amount_val"] = trans["balance_val"]
+                elif len(amounts_found) == 2:
                     amt_str, ind = amounts_found[-2]
                     bal_str, _ = amounts_found[-1]
                     trans["amount"] = amt_str.replace('-', '')
@@ -121,20 +149,25 @@ def parse_pdf(pdf_path):
                     trans["amount_val"] = float(amt_str.replace(',', '').replace('-', ''))
                     trans["balance_val"] = float(amt_str.replace(',', '').replace('-', ''))
                 
-                if re.search(r'\bCR\b', ind or "", re.IGNORECASE) or any("CR" in (i[1] or "").upper() for i in amounts_found):
-                    trans["type"] = "credit"
-                elif re.search(r'\bDR\b', ind or "", re.IGNORECASE) or any("DR" in (i[1] or "").upper() for i in amounts_found):
-                    trans["type"] = "debit"
-                elif trans["type"] == "unknown":
-                    if re.search(r'\bDR\b', full_block, re.IGNORECASE) or "/DR/" in full_block.upper():
-                        trans["type"] = "debit"
-                    elif re.search(r'\bCR\b', full_block, re.IGNORECASE) or "/CR/" in full_block.upper():
+                if trans["type"] == "unknown":
+                    if re.search(r'\bCR\b', full_block, re.IGNORECASE) or "/CR/" in full_block.upper():
                         trans["type"] = "credit"
+                    elif re.search(r'\bDR\b', full_block, re.IGNORECASE) or "/DR/" in full_block.upper():
+                        trans["type"] = "debit"
+
+            # Extract REF/CHQ.NO: grab the first standalone long numeric or alphanumeric reference
+            ref_match = re.search(r'\b([A-Z0-9]{8,20})\b', full_block)
+            # Also try a plain long numeric (e.g. 102392905753)
+            num_ref_match = re.search(r'\b(\d{8,15})\b', full_block)
+            trans["refNo"] = ref_match.group(1) if ref_match else (num_ref_match.group(1) if num_ref_match else "")
 
             # Clean up the description by joining parts and removing the money strings
             final_desc = " ".join(trans["description_parts"])
             # Remove the amounts from the description string so it's just text
             final_desc = re.sub(r'[-]?\d[\d,]*\.\d{2}\s*(?i:Cr|Dr|CR|DR|Cr\.|Dr\.)?', '', final_desc).strip()
+            # Strip leading "BRANCH REFNO" prefix that Canara Bank PDFs prepend
+            # e.g. "33 172131782616 UPI/DR/..." -> "UPI/DR/..."
+            final_desc = re.sub(r'^\d{1,4}\s+\d{6,}\s*', '', final_desc).strip()
             trans["description"] = final_desc
             
             # Clean up temporary helper fields

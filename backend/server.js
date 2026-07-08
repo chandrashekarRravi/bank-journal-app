@@ -302,7 +302,8 @@ app.post('/generate-entries', (req, res) => {
       debitAccount,
       creditAccount,
       entry: entryText,
-      narration: narration
+      narration: narration,
+      refNo: t.refNo || ''
     };
   });
 

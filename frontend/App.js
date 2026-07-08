@@ -24,7 +24,7 @@ import ExcelJS from 'exceljs/dist/exceljs.min.js';
 
 // API Configuration
 // Pointing back to your laptop via local IP for dev, or env variable for production || "http://192.168.0.6:3000"   || "https://bank-journal-backend.onrender.com"
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://192.168.0.7:3000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://10.61.119.38:8081";
 const Stack = createNativeStackNavigator();
 
 import { SavingsTransactionsScreen, SavingsReportScreen } from "./modules/savings/SavingsApp";
@@ -133,7 +133,7 @@ function UploadScreen({ navigation }) {
       alert("Please select at least two statements.");
       return;
     }
-    
+
     if (Platform.OS !== 'web') {
       alert("Comparison is supported on Web only for now.");
       return;
@@ -151,7 +151,7 @@ function UploadScreen({ navigation }) {
       };
 
       const buffers = await Promise.all(compareFiles.map(f => getBuffer(f)));
-      
+
       const ledgersMap = {};
 
       for (let i = 0; i < buffers.length; i++) {
@@ -175,7 +175,7 @@ function UploadScreen({ navigation }) {
             const party = row.values[partyCol] || 'Misc';
             let amt = parseFloat(row.values[amountCol]);
             if (isNaN(amt)) return;
-            
+
             if (!ledgersMap[party]) ledgersMap[party] = { total: 0 };
             ledgersMap[party][`b${i}`] = (ledgersMap[party][`b${i}`] || 0) + amt;
             ledgersMap[party].total += amt;
@@ -229,7 +229,7 @@ function UploadScreen({ navigation }) {
       const blob = new Blob([outBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const FileSaver = require('file-saver');
       FileSaver.saveAs(blob, "Statement_Comparison.xlsx");
-      
+
       // Close modal and reset after download
       setCompareModalVisible(false);
       setCompareResults(null);
@@ -388,7 +388,7 @@ function UploadScreen({ navigation }) {
           setCompareResults(null);
         }}>
           <View style={[styles.modalContent, { width: '90%', maxWidth: compareResults ? 700 : 450, borderRadius: 16, padding: 30, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 }]} onStartShouldSetResponder={() => true}>
-            
+
             {!compareResults ? (
               <View
                 {...Platform.select({ web: { onDrop: onCompareDrop, onDragOver: onCompareDragOver, onDragLeave: onCompareDragLeave } })}
@@ -437,7 +437,7 @@ function UploadScreen({ navigation }) {
             ) : (
               <>
                 <Text style={styles.modalTitle}>Comparison Preview</Text>
-                
+
                 <View style={{ maxHeight: 300, borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, marginBottom: 20 }}>
                   <ScrollView>
                     <ScrollView horizontal>
@@ -446,7 +446,7 @@ function UploadScreen({ navigation }) {
                           <Text style={{ width: 150, fontWeight: 'bold', color: '#2c3e50', fontSize: 12 }}>Ledger Name</Text>
                           {compareFiles.map((f, i) => (
                             <Text key={i} style={{ width: 100, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }} numberOfLines={1}>
-                              {f.name || `Bank ${i+1}`}
+                              {f.name || `Bank ${i + 1}`}
                             </Text>
                           ))}
                           <Text style={{ width: 100, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }}>Total</Text>
@@ -466,14 +466,14 @@ function UploadScreen({ navigation }) {
                 </View>
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <TouchableOpacity 
-                    style={[styles.button, { flex: 1, backgroundColor: '#e74c3c', marginRight: 10 }]} 
+                  <TouchableOpacity
+                    style={[styles.button, { flex: 1, backgroundColor: '#e74c3c', marginRight: 10 }]}
                     onPress={() => setCompareResults(null)}
                   >
                     <Text style={styles.buttonText}>Back</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.button, { flex: 1, backgroundColor: '#27ae60', marginLeft: 10 }]} 
+                  <TouchableOpacity
+                    style={[styles.button, { flex: 1, backgroundColor: '#27ae60', marginLeft: 10 }]}
                     onPress={handleDownloadCompareExcel}
                   >
                     <Text style={styles.buttonText}>Download Excel</Text>
@@ -499,24 +499,49 @@ function TransactionsScreen({ route, navigation }) {
   const generateEntries = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/generate-entries`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Bypass-Tunnel-Reminder": "true",
-        },
-        body: JSON.stringify(transactions),
-      });
+      const CHUNK_SIZE = 50;
+      const allEntries = [];
 
-      const data = await response.json();
-      if (response.ok) {
-        navigation.navigate("Journal", { entries: data });
-      } else {
-        Alert.alert("Error", data.error || "Failed to generate entries");
+      for (let i = 0; i < transactions.length; i += CHUNK_SIZE) {
+        const chunk = transactions.slice(i, i + CHUNK_SIZE);
+
+        const response = await fetch(`${API_URL}/generate-entries`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Bypass-Tunnel-Reminder": "true",
+          },
+          body: JSON.stringify(chunk),
+        });
+
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          Alert.alert(
+            "Server Error",
+            "The server returned an unexpected response. Please try again later."
+          );
+          return;
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+          Alert.alert("Error", data.error || "Failed to generate entries");
+          return;
+        }
+
+        if (Array.isArray(data)) {
+          allEntries.push(...data);
+        } else if (data.entries && Array.isArray(data.entries)) {
+          allEntries.push(...data.entries);
+        }
       }
+
+      navigation.navigate("Journal", { entries: allEntries });
     } catch (error) {
-      console.error(error);
-      Alert.alert("Network Error", "Ensure the backend is running.");
+      Alert.alert(
+        "Network Error",
+        "Could not reach the server. Please check your internet connection and try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -675,6 +700,9 @@ function JournalScreen({ route, navigation }) {
           const debAcc = item.debitAccount || "Accounts";
           const credAcc = item.creditAccount || "Accounts";
           const narration = item.narration || `(Being ${item.description})`;
+          const refLine = item.refNo
+            ? `<div style="font-size: 11px; color: #888; margin-top: 2px; margin-bottom: 4px;">Ref/Chq.No: <strong>${item.refNo}</strong></div>`
+            : "";
 
           return `
         <tr>
@@ -684,11 +712,12 @@ function JournalScreen({ route, navigation }) {
           <td>
             <div style="margin-bottom: 6px; font-size: 14px;"><strong>${debAcc} A/c</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="float: right; font-weight: bold; color: #555;">Dr.</span></div>
             <div style="padding-left: 40px; margin-bottom: 6px; font-size: 14px;">To <strong>${credAcc} A/c</strong></div>
+            ${refLine}
             <div style="font-style: italic; color: #7f8c8d; font-size: 12px; margin-top: 4px;">${narration}</div>
           </td>
           <td>
-            <div style="text-align: right; margin-bottom: 6px; font-weight: bold; color: #333;">${item.amount}</div>
-            <div style="text-align: left; margin-bottom: 6px; font-weight: bold; color: #333;">${item.amount}</div>
+            <div style="text-align: right; margin-bottom: 6px; font-weight: bold; color: #333;">₹ ${parseFloat(item.amount || 0).toFixed(2)}</div>
+            <div style="text-align: left; margin-bottom: 6px; font-weight: bold; color: #333;">₹ ${parseFloat(item.amount || 0).toFixed(2)}</div>
           </td>
         </tr>
       `;
@@ -696,7 +725,9 @@ function JournalScreen({ route, navigation }) {
         .join("");
 
       // Calculate Totals
-      const totalAmount = entriesData.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0).toFixed(2);
+      const totalDebit = entriesData.reduce((sum, item) => (item.type === "debit" || item.type === "dr") ? sum + parseFloat(item.amount || 0) : sum, 0).toFixed(2);
+      const totalCredit = entriesData.reduce((sum, item) => (item.type === "credit" || item.type === "cr") ? sum + parseFloat(item.amount || 0) : sum, 0).toFixed(2);
+      const grandTotal = entriesData.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0).toFixed(2);
 
       let htmlContent = `
         <html>
@@ -735,10 +766,15 @@ function JournalScreen({ route, navigation }) {
               </tr>
               ${htmlRows}
               <tr class="total-row">
-                <td colspan="4" style="text-align: right;">GRAND TOTAL</td>
+                <td colspan="4" style="text-align: right; vertical-align: top;">
+                  <div style="margin-bottom: 4px;">Total Debit</div>
+                  <div style="margin-bottom: 4px;">Total Credit</div>
+                  <div style="border-top: 1px solid #bdc3c7; padding-top: 4px; font-size: 15px;">Grand Total</div>
+                </td>
                 <td>
-                  <div style="text-align: right; margin-bottom: 6px;">₹ ${totalAmount}</div>
-                  <div style="text-align: left;">₹ ${totalAmount}</div>
+                  <div style="text-align: right; margin-bottom: 4px;">₹ ${totalDebit}</div>
+                  <div style="text-align: left; margin-bottom: 4px;">₹ ${totalCredit}</div>
+                  <div style="text-align: right; border-top: 1px solid #bdc3c7; padding-top: 4px; font-size: 15px; color: #2c3e50;">₹ ${grandTotal}</div>
                 </td>
               </tr>
             </table>
