@@ -194,6 +194,8 @@ export function SavingsReportScreen({ route, navigation }) {
 
   // Chart Filters
   const [chartFilter, setChartFilter] = useState('All Time');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   // Category Edit State
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [isLedgersOpen, setIsLedgersOpen] = useState(false);
@@ -905,11 +907,7 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Platform.select({ web: { boxShadow: '0 2px 4px rgba(0,0,0,0.10)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 } }),
   },
   summaryRow: {
     flexDirection: "row",

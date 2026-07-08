@@ -387,7 +387,7 @@ function UploadScreen({ navigation }) {
           setCompareModalVisible(false);
           setCompareResults(null);
         }}>
-          <View style={[styles.modalContent, { width: '90%', maxWidth: compareResults ? 700 : 450, borderRadius: 16, padding: 30, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 }]} onStartShouldSetResponder={() => true}>
+          <View style={[styles.modalContent, { width: '90%', maxWidth: compareResults ? 700 : 450, borderRadius: 16, padding: 30, ...Platform.select({ web: { boxShadow: '0 10px 20px rgba(0,0,0,0.20)' }, default: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 } }) }]} onStartShouldSetResponder={() => true}>
 
             {!compareResults ? (
               <View
@@ -1013,12 +1013,12 @@ function LedgersScreen({ route }) {
 
     const handleWheel = (e) => {
       if (e.deltaY !== 0) {
-        e.preventDefault();
         element.scrollLeft += e.deltaY;
       }
     };
 
-    element.addEventListener("wheel", handleWheel, { passive: false });
+    // passive: true avoids scroll-blocking warning; we no longer call preventDefault
+    element.addEventListener("wheel", handleWheel, { passive: true });
     return () => {
       element.removeEventListener("wheel", handleWheel);
     };
@@ -1277,11 +1277,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: "#FFF",
     borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 3,
+    ...Platform.select({ web: { boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 3 } }),
   },
   loadingText: {
     marginTop: 15,
@@ -1294,11 +1290,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
-    shadowColor: "#2B6CB0",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
+    ...Platform.select({ web: { boxShadow: '0 8px 12px rgba(43,108,176,0.25)' }, default: { shadowColor: '#2B6CB0', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 } }),
     maxWidth: 800,
   },
   fullWidthButton: {
@@ -1333,11 +1325,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     marginBottom: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    ...Platform.select({ web: { boxShadow: '0 4px 8px rgba(0,0,0,0.06)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 } }),
     width: "100%",
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.02)",
@@ -1396,11 +1384,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#EDF2F7",
     width: "100%",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 10,
+    ...Platform.select({ web: { boxShadow: '0 -4px 8px rgba(0,0,0,0.03)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 10 } }),
   },
   entryCard: {
     backgroundColor: "#FFF",
@@ -1409,11 +1393,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderLeftWidth: 5,
     borderLeftColor: "#3182CE",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    ...Platform.select({ web: { boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 } }),
     width: "100%",
   },
   entryBox: {
@@ -1451,11 +1431,7 @@ const styles = StyleSheet.create({
     padding: 24,
     maxHeight: "75%",
     width: Platform.OS === 'web' ? 360 : '100%',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 20,
+    ...Platform.select({ web: { boxShadow: '0 -10px 20px rgba(0,0,0,0.10)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 20 } }),
   },
   modalTitle: {
     fontSize: 20,
@@ -1571,11 +1547,7 @@ const styles = StyleSheet.create({
     padding: 24,
     width: 320,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 20,
+    ...Platform.select({ web: { boxShadow: '0 10px 20px rgba(0,0,0,0.15)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 20 } }),
     alignSelf: "center",
   },
   confirmModalTitle: {
@@ -1644,11 +1616,7 @@ const styles = StyleSheet.create({
     width: 480,
     height: "100%",
     backgroundColor: "#F4F7FB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    elevation: 8,
+    ...Platform.select({ web: { boxShadow: '0 0 20px rgba(0,0,0,0.06)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.06, shadowRadius: 20, elevation: 8 } }),
     overflow: "hidden",
     borderLeftWidth: 1,
     borderRightWidth: 1,
