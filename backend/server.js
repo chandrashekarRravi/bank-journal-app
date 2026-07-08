@@ -144,26 +144,20 @@ const extractAccountName = (description) => {
 
   const descUpper = desc.toUpperCase();
 
+  let isCheque = false;
   // Try to extract from Cheque
-  if (/\bCHQ\b|\bCHEQUE\b/.test(descUpper)) {
-    const chqMatch = desc.match(/(?:CHQ|CHEQUE)[^\d]*(\d+)[^\w]*([a-zA-Z\s]+)/i);
+  if (/\bCHQ\b|\bCHEQUE\b/i.test(descUpper)) {
+    isCheque = true;
+    const chqMatch = desc.match(/(?:CHQ|CHEQUE)[^\d]*(\d+)[^\w]*([a-zA-Z\s]{3,})/i);
     if (chqMatch && chqMatch[2] && chqMatch[2].trim().length > 2) {
       return `Chq ${chqMatch[1]} - ${chqMatch[2].trim()}`;
     }
-    const parts = desc.split(/[/\\-]/).map(p => p.trim()).filter(p => p);
-    if (parts.length >= 3 && parts[0].match(/CHQ|CLG/i)) {
-      return `Chq ${parts[1]} - ${parts[2]}`;
-    }
-    if (parts.length >= 2 && parts[0].match(/CHQ|CHEQUE/i)) {
-      return `Chq - ${parts[1]}`;
-    }
-    return 'Cheque';
   }
 
   const parts = desc.split(/[/\\-]/).map(p => p.trim()).filter(p => p);
   
   if (parts.length >= 2) {
-    const ignoreWords = ['UPI', 'NEFT', 'RTGS', 'IMPS', 'INB', 'INF', 'BULK', 'IFT', 'CR', 'DR', 'P2A', 'P2P', 'P2M', 'OPT', 'GST', 'ACH', 'CMS', 'TRF', 'MBS', 'AVG', 'MIN', 'BAL', 'CHRG', 'MOB', 'TRANS', 'PAYMENT', 'BANK'];
+    const ignoreWords = ['UPI', 'NEFT', 'RTGS', 'IMPS', 'INB', 'INF', 'BULK', 'IFT', 'CR', 'DR', 'P2A', 'P2P', 'P2M', 'OPT', 'GST', 'ACH', 'CMS', 'TRF', 'MBS', 'AVG', 'MIN', 'BAL', 'CHRG', 'MOB', 'TRANS', 'PAYMENT', 'BANK', 'CHQ', 'CHEQUE'];
     
     for (let i = 0; i < parts.length; i++) {
       let part = parts[i];
@@ -204,12 +198,12 @@ const extractAccountName = (description) => {
 
       // Looks like a valid name if it has a few letters
       if (potentialName.replace(/[^a-zA-Z]/g, '').length >= 3) {
-        return potentialName.trim();
+        return isCheque ? `Chq - ${potentialName.trim()}` : potentialName.trim();
       }
     }
   }
 
-  return 'unknown'; // Return unknown if no valid name found
+  return isCheque ? 'Cheque' : 'unknown'; // Return unknown if no valid name found
 };
 
 // POST /generate-entries - Accept JSON, return journal entries
@@ -231,6 +225,7 @@ app.post('/generate-entries', (req, res) => {
 
     let accountName = extractAccountName(cleanDesc);
 
+    let originalExtracted = accountName; // DEBUG
     // If extraction returned Misc, unknown, or the full description, and we have a better category, use it
     if (accountName === 'Misc' || accountName === cleanDesc || accountName === 'unknown') {
       if (t.category && t.category !== 'Misc') {
@@ -243,6 +238,9 @@ app.post('/generate-entries', (req, res) => {
     if (!accountName || accountName === 'unknown') {
       accountName = 'Misc';
     }
+    
+    console.log("DEBUG /generate-entries - rawDesc:", rawDesc);
+    console.log("DEBUG /generate-entries - extracted:", originalExtracted, " | category:", t.category, " | finalAccountName:", accountName);
 
     let debitAccount = '';
     let creditAccount = '';
@@ -286,7 +284,11 @@ app.post('/generate-entries', (req, res) => {
     } else if (mode === 'Cheque') {
       let chqMatch = desc.match(/(?:CHQ|CHEQUE)[^\d]*(\d+)/i);
       let chqNum = chqMatch && chqMatch[1] ? chqMatch[1] : '';
-      narration = type === 'credit' ? `(Being cheque deposited${chqNum ? ' no. ' + chqNum : ''})` : `(Being cheque issued${chqNum ? ' no. ' + chqNum : ''})`;
+      let toFromText = '';
+      if (accountName && accountName !== 'Misc' && accountName !== 'unknown' && accountName !== 'Cheque') {
+        toFromText = type === 'credit' ? ` from ${accountName}` : ` to ${accountName}`;
+      }
+      narration = type === 'credit' ? `(Being cheque deposited${toFromText}${chqNum ? ' no. ' + chqNum : ''})` : `(Being cheque issued${toFromText}${chqNum ? ' no. ' + chqNum : ''})`;
     } else {
       let toFromText = '';
       if (accountName && accountName !== 'Misc' && accountName !== 'unknown') {
