@@ -163,19 +163,28 @@ const extractAccountName = (description) => {
   const parts = desc.split(/[/\\-]/).map(p => p.trim()).filter(p => p);
   
   if (parts.length >= 2) {
-    const ignoreWords = ['UPI', 'NEFT', 'RTGS', 'IMPS', 'INB', 'INF', 'BULK', 'IFT', 'CR', 'DR', 'P2A', 'P2P', 'P2M', 'OPT', 'GST', 'ACH', 'CMS', 'TRF', 'MBS', 'AVG', 'MIN', 'BAL', 'CHRG'];
+    const ignoreWords = ['UPI', 'NEFT', 'RTGS', 'IMPS', 'INB', 'INF', 'BULK', 'IFT', 'CR', 'DR', 'P2A', 'P2P', 'P2M', 'OPT', 'GST', 'ACH', 'CMS', 'TRF', 'MBS', 'AVG', 'MIN', 'BAL', 'CHRG', 'MOB', 'TRANS', 'PAYMENT', 'BANK'];
     
     for (let i = 0; i < parts.length; i++) {
       let part = parts[i];
-      let partUpper = part.toUpperCase();
+      let partUpper = part.toUpperCase().trim();
       
-      // Skip numeric IDs or long alphanumeric refs
-      if (/^[\d]+$/.test(part) || /^[A-Z0-9]{8,25}$/.test(partUpper)) continue;
+      // Skip numeric IDs or long alphanumeric refs (must contain at least one digit)
+      if (/^[\d]+$/.test(part) || /^(?=.*[0-9])[A-Z0-9]{8,40}$/.test(partUpper)) continue;
       
       // Skip short dates like Apr
       if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/i.test(partUpper)) continue;
 
-      if (ignoreWords.includes(partUpper)) continue;
+      // Handle words combined with space, e.g., 'IMPS CR'
+      let subParts = partUpper.split(/\s+/);
+      let allIgnored = true;
+      for (const sp of subParts) {
+         if (!ignoreWords.includes(sp) && !ignoreWords.includes(partUpper)) {
+             allIgnored = false;
+             break;
+         }
+      }
+      if (allIgnored) continue;
 
       let potentialName = part;
       if (/^TO\s+/i.test(potentialName)) {
@@ -195,7 +204,7 @@ const extractAccountName = (description) => {
 
       // Looks like a valid name if it has a few letters
       if (potentialName.replace(/[^a-zA-Z]/g, '').length >= 3) {
-        return potentialName;
+        return potentialName.trim();
       }
     }
   }
