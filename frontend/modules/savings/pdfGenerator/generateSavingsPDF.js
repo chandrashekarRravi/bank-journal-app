@@ -268,7 +268,7 @@ export const generateSavingsPDF = async (transactions, metadata = {}, chartType 
     });
 
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(customUri);
+      await Sharing.shareAsync(customUri, { UTI: '.pdf', mimeType: 'application/pdf' });
     } else {
       Alert.alert("Success", "PDF Generated but sharing is not available on this device");
     }

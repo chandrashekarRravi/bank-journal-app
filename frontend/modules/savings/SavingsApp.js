@@ -346,7 +346,7 @@ export function SavingsReportScreen({ route, navigation }) {
         usedNames.add("all transactions"); // the master sheet
         
         Object.keys(ledgers).forEach(party => {
-          let sheetName = party.replace(/[\/\?\*\[\]\\]/g, '').trim().substring(0, 31);
+          let sheetName = party.replace(/[\/\?\*\[\]\\:]/g, '').trim().substring(0, 31);
           if (!sheetName) sheetName = "Unknown";
           
           let finalName = sheetName;

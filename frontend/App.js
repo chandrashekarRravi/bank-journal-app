@@ -791,7 +791,7 @@ function JournalScreen({ route, navigation }) {
       } else {
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri);
+          await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
         } else {
           Alert.alert("Sharing not available", "Cannot share on this device.");
         }
@@ -1086,7 +1086,7 @@ function LedgersScreen({ route }) {
       } else {
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri);
+          await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
         } else {
           Alert.alert("Sharing not available", "Cannot share on this device.");
         }
