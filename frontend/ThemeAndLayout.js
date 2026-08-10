@@ -67,9 +67,9 @@ export function DashboardLayout({ user, activeNav, navigation, children }) {
     { id: "import",       label: "Import Data",  icon: "☁",  route: "Upload" },
     { id: "dashboard",    label: "Dashboard",    icon: "⊞",  route: "Upload" },
     { id: "analysis",     label: "Analysis",     icon: "◷",  route: "Upload" },
-    { id: "tally",        label: "Tally Export", icon: "📊", route: "Tally" },
     { id: "comparisons",  label: "Comparisons",  icon: "⇄",  route: "Comparisons" },
     { id: "reports",      label: "Reports",      icon: "☰",  route: "Reports" },
+    { id: "tally",        label: "Tally",        icon: "📑", route: "Tally" },
     { id: "settings",     label: "Settings",     icon: "⚙",  route: "Upload" },
   ];
 

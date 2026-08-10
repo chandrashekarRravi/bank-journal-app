@@ -22,6 +22,13 @@ app.use(express.json());
 const savingsRouter = require('./modules/savings/routes');
 app.use('/api/savings', savingsRouter);
 
+const tallyRouter = require('./modules/tally/routes');
+app.use('/api/tally', tallyRouter);
+app.use(tallyRouter); // as tally routes has /upload-tally directly
+
+// Serve exports statically so they can be downloaded
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Root health-check endpoint
 app.get('/', (req, res) => {
   res.send('Banklyt API Backend is running successfully!');

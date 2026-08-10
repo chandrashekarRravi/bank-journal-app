@@ -33,7 +33,6 @@ import { SavingsTransactionsScreen, SavingsReportScreen } from "./modules/saving
 import LandingScreen from "./modules/landing/LandingScreen";
 import TallyScreen from "./modules/tally/TallyScreen";
 
-
 // Helper to isolate HTML printing on Web (prevents printing the entire React Native App page)
 const printHTMLOnWeb = (htmlContent) => {
   if (Platform.OS !== "web") return;
@@ -188,6 +187,7 @@ function UploadScreen({ route, navigation }) {
     { id: "transactions", label: "Transactions", icon: "≡" },
     { id: "comparisons", label: "Comparisons", icon: "⇄" },
     { id: "reports", label: "Reports", icon: "☰" },
+    { id: "tally", label: "Tally", icon: "📑" },
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
 
@@ -261,19 +261,6 @@ function UploadScreen({ route, navigation }) {
                 <Text style={[dbStyles.primaryBtnText, { color: isSavings ? theme.textGreen : theme.font }]}>
                   Upload PDF Statement
                 </Text>
-              </TouchableOpacity>
-
-              <Text style={dbStyles.orDivider}>OR</Text>
-
-              <TouchableOpacity
-                style={[dbStyles.primaryBtn, { backgroundColor: isSavings ? theme.savingsAccent : theme.businessAccent, marginBottom: 0 }]}
-                onPress={() => navigation.navigate("Tally", { user })}
-              >
-                <Text style={{ fontSize: 18, marginRight: 8 }}>📊</Text>
-                <View>
-                  <Text style={[dbStyles.primaryBtnText, { color: theme.textGreen }]}>Export to Tally</Text>
-                  <Text style={[{ fontSize: 11, color: theme.textGreen + "bb", marginTop: 2 }]}>Parse PDF → Download Excel + Tally XML</Text>
-                </View>
               </TouchableOpacity>
 
             </>
@@ -1277,6 +1264,7 @@ function AppContent() {
         <Stack.Screen name="Upload" component={UploadScreen} />
         <Stack.Screen name="Comparisons" component={ComparisonsScreen} />
         <Stack.Screen name="Reports" component={ReportsScreen} />
+        <Stack.Screen name="Tally" component={TallyScreen} />
 
         {/* Inner data screens (keep headers for back navigation) */}
         <Stack.Screen
@@ -1299,11 +1287,11 @@ function AppContent() {
           component={SavingsTransactionsScreen}
           options={{ headerShown: true, title: "Savings Transactions" }}
         />
-        <Stack.Screen name="SavingsReport"
+        <Stack.Screen
+          name="SavingsReport"
           component={SavingsReportScreen}
           options={{ headerShown: true, title: "Savings Report" }}
         />
-        <Stack.Screen name="Tally" component={TallyScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
