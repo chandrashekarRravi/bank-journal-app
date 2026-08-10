@@ -13,7 +13,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { ThemeContext, DashboardLayout, dbStyles } from "../../ThemeAndLayout";
 
 // Use same backend URL approach as App.js
-const API_URL = Platform.OS === "web" ? "http://localhost:5000" : "http://192.168.1.100:5000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 export default function TallyScreen({ navigation, route }) {
   const { user } = route.params || {};
@@ -159,21 +159,21 @@ export default function TallyScreen({ navigation, route }) {
           </TouchableOpacity>
 
           {/* Error banner */}
-          {uploadError && (
+          {uploadError ? (
             <View style={[dbStyles.errorBanner, { backgroundColor: theme.pink + "22", borderColor: theme.pink, marginTop: 16 }]}>
               <Text style={[dbStyles.errorTitle, { color: theme.pink }]}>⚠ Export Failed</Text>
               <Text style={[dbStyles.errorDesc, { color: theme.muted }]}>{uploadError}</Text>
             </View>
-          )}
+          ) : null}
 
           {/* Export Success Result */}
-          {exportResult && !loading && (
+          {(exportResult && !loading) ? (
             <View style={{ marginTop: 24, padding: 16, backgroundColor: theme.green + "11", borderRadius: 12, borderWidth: 1, borderColor: theme.green }}>
               <Text style={{ fontSize: 18, fontWeight: "bold", color: theme.green, marginBottom: 8 }}>✅ Export Successful</Text>
               <Text style={{ color: theme.muted, marginBottom: 16 }}>Your statement has been processed into Tally formats.</Text>
               
               <View style={{ flexDirection: "row", gap: 12 }}>
-                {exportResult.excelUrl && (
+                {exportResult.excelUrl ? (
                   <TouchableOpacity 
                     style={[dbStyles.primaryBtn, { flex: 1, backgroundColor: "#1D6F42" }]}
                     onPress={() => handleDownload(`${API_URL}${exportResult.excelUrl}`)}
@@ -181,9 +181,9 @@ export default function TallyScreen({ navigation, route }) {
                     <Text style={{ fontSize: 18, marginRight: 8 }}>📊</Text>
                     <Text style={{ color: "#FFF", fontWeight: "bold" }}>Download Excel</Text>
                   </TouchableOpacity>
-                )}
+                ) : null}
                 
-                {exportResult.xmlUrl && (
+                {exportResult.xmlUrl ? (
                   <TouchableOpacity 
                     style={[dbStyles.primaryBtn, { flex: 1, backgroundColor: "#E34F26" }]}
                     onPress={() => handleDownload(`${API_URL}${exportResult.xmlUrl}`)}
@@ -191,10 +191,10 @@ export default function TallyScreen({ navigation, route }) {
                     <Text style={{ fontSize: 18, marginRight: 8 }}>📋</Text>
                     <Text style={{ color: "#FFF", fontWeight: "bold" }}>Download XML</Text>
                   </TouchableOpacity>
-                )}
+                ) : null}
               </View>
             </View>
-          )}
+          ) : null}
 
           {/* Drop zone / loading */}
           <View style={{ marginTop: 24 }}>

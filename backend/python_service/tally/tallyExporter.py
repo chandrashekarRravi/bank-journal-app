@@ -6,9 +6,13 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from datetime import datetime
 import xml.etree.ElementTree as ET
 
-# Import the existing parser
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import parser
+import importlib.util
+
+# Import the existing parser dynamically to avoid conflict with standard library 'parser'
+parser_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "parser.py")
+spec = importlib.util.spec_from_file_location("local_parser", parser_path)
+local_parser = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(local_parser)
 
 def generate_excel(transactions, output_path, metadata):
     wb = openpyxl.Workbook()
@@ -169,7 +173,7 @@ if __name__ == "__main__":
     sys.stdout = mystdout = StringIO()
     
     try:
-        parser.parse_pdf(pdf_path)
+        local_parser.parse_pdf(pdf_path)
     except Exception as e:
         sys.stdout = old_stdout
         print(json.dumps({"error": str(e)}))
