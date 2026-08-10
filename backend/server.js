@@ -22,6 +22,9 @@ app.use(express.json());
 const savingsRouter = require('./modules/savings/routes');
 app.use('/api/savings', savingsRouter);
 
+const { generateExcel, generateTallyXML } = require('./modules/tally/tallyExporter');
+
+
 // Root health-check endpoint
 app.get('/', (req, res) => {
   res.send('Banklyt API Backend is running successfully!');
@@ -340,6 +343,64 @@ app.post('/update-category', (req, res) => {
   res.json({ success: true });
 });
 
+
+// POST /tally/export — Parse PDF then generate Excel + Tally XML
+app.post('/tally/export', upload.single('statement'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  const pdfPath    = req.file.path;
+  const accountType = (req.body.accountType || 'current').toLowerCase();
+  const companyName = req.body.companyName || 'My Company';
+  const bankLedger  = req.body.bankLedger  || 'Bank Account';
+
+  // Pick parser based on account type
+  const scriptName = accountType === 'savings' ? 'savingsParser.py' : 'parser.py';
+  const parserDir  = accountType === 'savings'
+    ? path.join(__dirname, 'modules', 'savings')
+    : path.join(__dirname, 'python_service');
+  const pythonScript = path.join(parserDir, scriptName);
+
+  const pythonProcess = spawn('python', [pythonScript, pdfPath]);
+  let dataString = '', errorString = '';
+
+  pythonProcess.stdout.on('data', d => { dataString += d.toString(); });
+  pythonProcess.stderr.on('data', d => { errorString += d.toString(); });
+
+  pythonProcess.on('close', async (code) => {
+    try { fs.unlinkSync(pdfPath); } catch (_) {}
+
+    if (code !== 0) {
+      console.error('Tally Parser Error:', errorString);
+      return res.status(500).json({ error: 'Failed to parse PDF.' });
+    }
+
+    try {
+      const jsonStart = dataString.indexOf('[');
+      const jsonEnd   = dataString.lastIndexOf(']') + 1;
+      const transactions = JSON.parse(dataString.substring(jsonStart, jsonEnd));
+
+      // Classify
+      const classified = transactions.map(t => ({
+        ...t,
+        category: classifyTransaction(t.description),
+      }));
+
+      // Generate outputs
+      const excelBuffer = await generateExcel(classified, bankLedger);
+      const xmlString   = generateTallyXML(classified, companyName, bankLedger);
+
+      res.json({
+        transactions: classified,
+        excel: excelBuffer.toString('base64'),
+        xml:   Buffer.from(xmlString, 'utf8').toString('base64'),
+      });
+    } catch (e) {
+      console.error('Tally export error:', e);
+      res.status(500).json({ error: 'Failed to generate export files.' });
+    }
+  });
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`Backend server running on http://0.0.0.0:${port} or localhost:8081`);
-});
+});
