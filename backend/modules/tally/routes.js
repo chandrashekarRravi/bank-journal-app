@@ -46,8 +46,19 @@ router.post('/upload-tally', upload.single('statement'), (req, res) => {
     });
 
     if (code !== 0) {
-      console.error(`Tally Exporter Python Script Error: ${errorBuffer}`);
-      return res.status(500).json({ error: 'Error generating Tally export.', details: errorBuffer });
+      console.error(`Tally Exporter Python Script exited with code ${code}.`);
+      console.error(`Stderr: ${errorBuffer}`);
+      console.error(`Stdout: ${dataBuffer}`);
+      
+      let errorMsg = 'Error generating Tally export.';
+      try {
+        if (dataBuffer) {
+          const parsed = JSON.parse(dataBuffer);
+          if (parsed.error) errorMsg = parsed.error;
+        }
+      } catch (e) {}
+
+      return res.status(500).json({ error: errorMsg, details: errorBuffer || dataBuffer });
     }
 
     try {
