@@ -101,6 +101,12 @@ export function SavingsTransactionsScreen({ route, navigation }) {
         >
           <Text style={[styles.buttonText, { color: theme.textGreen }]}>Generate Savings Report</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, styles.fullWidthButton, { backgroundColor: theme.savingsAccent + "18", borderWidth: 1.5, borderColor: theme.savingsAccent, marginTop: 8 }]}
+          onPress={() => navigation.navigate("Tally", { user: { ...user, type: "savings" } })}
+        >
+          <Text style={[styles.buttonText, { color: theme.savingsAccent }]}>📊 Export to Tally</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Category Dropdown Modal */}

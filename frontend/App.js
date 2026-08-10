@@ -31,6 +31,8 @@ const Stack = createNativeStackNavigator();
 
 import { SavingsTransactionsScreen, SavingsReportScreen } from "./modules/savings/SavingsApp";
 import LandingScreen from "./modules/landing/LandingScreen";
+import TallyScreen from "./modules/tally/TallyScreen";
+
 
 // Helper to isolate HTML printing on Web (prevents printing the entire React Native App page)
 const printHTMLOnWeb = (htmlContent) => {
@@ -259,6 +261,19 @@ function UploadScreen({ route, navigation }) {
                 <Text style={[dbStyles.primaryBtnText, { color: isSavings ? theme.textGreen : theme.font }]}>
                   Upload PDF Statement
                 </Text>
+              </TouchableOpacity>
+
+              <Text style={dbStyles.orDivider}>OR</Text>
+
+              <TouchableOpacity
+                style={[dbStyles.primaryBtn, { backgroundColor: isSavings ? theme.savingsAccent : theme.businessAccent, marginBottom: 0 }]}
+                onPress={() => navigation.navigate("Tally", { user })}
+              >
+                <Text style={{ fontSize: 18, marginRight: 8 }}>📊</Text>
+                <View>
+                  <Text style={[dbStyles.primaryBtnText, { color: theme.textGreen }]}>Export to Tally</Text>
+                  <Text style={[{ fontSize: 11, color: theme.textGreen + "bb", marginTop: 2 }]}>Parse PDF → Download Excel + Tally XML</Text>
+                </View>
               </TouchableOpacity>
 
             </>
@@ -1284,11 +1299,11 @@ function AppContent() {
           component={SavingsTransactionsScreen}
           options={{ headerShown: true, title: "Savings Transactions" }}
         />
-        <Stack.Screen
-          name="SavingsReport"
+        <Stack.Screen name="SavingsReport"
           component={SavingsReportScreen}
           options={{ headerShown: true, title: "Savings Report" }}
         />
+        <Stack.Screen name="Tally" component={TallyScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
