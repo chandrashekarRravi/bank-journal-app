@@ -344,49 +344,43 @@ app.post('/update-category', (req, res) => {
 });
 
 
-// POST /tally/export — Parse PDF then generate Excel + Tally XML
+// POST /tally/export — Tally-only route: dedicated parser → Excel + Tally XML
 app.post('/tally/export', upload.single('statement'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  const pdfPath    = req.file.path;
-  const accountType = (req.body.accountType || 'current').toLowerCase();
+  const pdfPath     = req.file.path;
   const companyName = req.body.companyName || 'My Company';
   const bankLedger  = req.body.bankLedger  || 'Bank Account';
+  const bankType    = req.body.bankType    || 'Bank';
 
-  // Pick parser based on account type
-  const scriptName = accountType === 'savings' ? 'savingsParser.py' : 'parser.py';
-  const parserDir  = accountType === 'savings'
-    ? path.join(__dirname, 'modules', 'savings')
-    : path.join(__dirname, 'python_service');
-  const pythonScript = path.join(parserDir, scriptName);
+  // Always use the tally-specific parser (isolated from savings/business logic)
+  const tallyParser = path.join(__dirname, 'python_service', 'tally', 'tallyParser.py');
+  const proc = spawn('python', [tallyParser, pdfPath]);
+  let out = '', err = '';
 
-  const pythonProcess = spawn('python', [pythonScript, pdfPath]);
-  let dataString = '', errorString = '';
+  proc.stdout.on('data', d => { out += d.toString(); });
+  proc.stderr.on('data', d => { err += d.toString(); });
 
-  pythonProcess.stdout.on('data', d => { dataString += d.toString(); });
-  pythonProcess.stderr.on('data', d => { errorString += d.toString(); });
-
-  pythonProcess.on('close', async (code) => {
+  proc.on('close', async (code) => {
     try { fs.unlinkSync(pdfPath); } catch (_) {}
 
     if (code !== 0) {
-      console.error('Tally Parser Error:', errorString);
+      console.error('Tally Parser Error:', err);
       return res.status(500).json({ error: 'Failed to parse PDF.' });
     }
 
     try {
-      const jsonStart = dataString.indexOf('[');
-      const jsonEnd   = dataString.lastIndexOf(']') + 1;
-      const transactions = JSON.parse(dataString.substring(jsonStart, jsonEnd));
+      const jsonStart    = out.indexOf('[');
+      const jsonEnd      = out.lastIndexOf(']') + 1;
+      const transactions = JSON.parse(out.substring(jsonStart, jsonEnd));
 
-      // Classify
+      // Classify description → ledger category for Tally XML
       const classified = transactions.map(t => ({
         ...t,
         category: classifyTransaction(t.description),
       }));
 
-      // Generate outputs
-      const excelBuffer = await generateExcel(classified, bankLedger);
+      const excelBuffer = await generateExcel(classified, companyName, bankLedger, bankType);
       const xmlString   = generateTallyXML(classified, companyName, bankLedger);
 
       res.json({
@@ -400,6 +394,7 @@ app.post('/tally/export', upload.single('statement'), async (req, res) => {
     }
   });
 });
+
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Backend server running on http://0.0.0.0:${port} or localhost:8081`);
