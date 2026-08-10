@@ -185,9 +185,10 @@ def parse_pdf(pdf_path):
                     # Fallback check - if absolute value of amount is present
                     transactions[i]["type"] = "debit" # Defaulting for unknown un-matched
 
-        # Remove internal helper; keep balance_val for Excel closing-balance column
+        # Remove numeric helper for clean JSON output
         for t in transactions:
             if "amount_val" in t: del t["amount_val"]
+            if "balance_val" in t: del t["balance_val"]
 
         doc.close()
 
