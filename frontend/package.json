@@ -1,7 +1,7 @@
 {
-  "name": "bank-journal-app-frontend",
+  "name": "banklyt-app-frontend",
   "version": "1.0.0",
-  "description": "Bank Journal Application",
+  "description": "Banklyt Application",
   "author": "We and You Marketing",
   "main": "expo/AppEntry.js",
   "scripts": {
@@ -43,7 +43,7 @@
   "private": true,
   "build": {
     "appId": "com.weandyou.bankjournal",
-    "productName": "Bank Journal",
+    "productName": "Banklyt",
     "directories": {
       "output": "dist-electron"
     },
@@ -60,7 +60,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Bank Journal"
+      "shortcutName": "Banklyt"
     }
   }
 }

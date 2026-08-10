@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, createContext, useContext, useEffect } from "react";
+import { lightTheme, darkTheme, ThemeContext, useAppTheme, DashboardLayout, dbStyles } from "./ThemeAndLayout";
 import {
   View,
   Text,
@@ -20,7 +21,8 @@ import { StatusBar } from "expo-status-bar";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
-import ExcelJS from 'exceljs/dist/exceljs.min.js';
+// ExcelJS is web-only — lazy require to avoid native crash
+const ExcelJS = Platform.OS === 'web' ? require('exceljs/dist/exceljs.min.js') : null;
 
 // API Configuration
 // Pointing back to your laptop via local IP for dev, or env variable for production || "http://192.168.0.6:3000"   || "https://bank-journal-backend.onrender.com"
@@ -28,6 +30,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend
 const Stack = createNativeStackNavigator();
 
 import { SavingsTransactionsScreen, SavingsReportScreen } from "./modules/savings/SavingsApp";
+import LandingScreen from "./modules/landing/LandingScreen";
 
 // Helper to isolate HTML printing on Web (prevents printing the entire React Native App page)
 const printHTMLOnWeb = (htmlContent) => {
@@ -67,178 +70,23 @@ const printHTMLOnWeb = (htmlContent) => {
   }
 };
 
+
+
+
 // --- 1. Upload Screen ---
-function UploadScreen({ navigation }) {
+function UploadScreen({ route, navigation }) {
+  const { user } = route.params || {};
+  const accountType = user?.type || "current";
+  const isSavings = accountType === "savings";
+  const { theme } = useAppTheme();
+  const accent = isSavings ? theme.savingsAccent : theme.businessAccent;
+
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Processing PDF...");
   const [uploadError, setUploadError] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  const [statementType, setStatementType] = useState("business");
+  const statementType = isSavings ? "savings" : "business";
 
-  // Compare Statements State
-  const [compareModalVisible, setCompareModalVisible] = useState(false);
-  const [compareFiles, setCompareFiles] = useState([]);
-  const [isComparing, setIsComparing] = useState(false);
-  const [compareResults, setCompareResults] = useState(null);
-  const [isCompareDragActive, setIsCompareDragActive] = useState(false);
-
-  const handlePickCompareFile = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', '*/*'],
-        copyToCacheDirectory: true,
-        multiple: true,
-      });
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setCompareFiles(prev => [...prev, ...result.assets]);
-      }
-    } catch (err) {
-      console.warn("Failed to pick file:", err);
-    }
-  };
-
-  const handleRemoveCompareFile = (index) => {
-    setCompareFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const onCompareDrop = (e) => {
-    if (Platform.OS === 'web') {
-      e.preventDefault();
-      setIsCompareDragActive(false);
-      if (e.dataTransfer && e.dataTransfer.files) {
-        const filesArray = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
-        if (filesArray.length > 0) {
-          setCompareFiles(prev => [...prev, ...filesArray]);
-        }
-      }
-    }
-  };
-
-  const onCompareDragOver = (e) => {
-    if (Platform.OS === 'web') {
-      e.preventDefault();
-      setIsCompareDragActive(true);
-    }
-  };
-
-  const onCompareDragLeave = (e) => {
-    if (Platform.OS === 'web') {
-      e.preventDefault();
-      setIsCompareDragActive(false);
-    }
-  };
-
-  const handleCompareStatements = async () => {
-    if (compareFiles.length < 2) {
-      alert("Please select at least two statements.");
-      return;
-    }
-
-    if (Platform.OS !== 'web') {
-      alert("Comparison is supported on Web only for now.");
-      return;
-    }
-
-    setIsComparing(true);
-    try {
-      const getBuffer = async (file) => {
-        if (file.uri) {
-          const response = await fetch(file.uri);
-          return await response.arrayBuffer();
-        } else {
-          return await file.arrayBuffer(); // Native Web File object
-        }
-      };
-
-      const buffers = await Promise.all(compareFiles.map(f => getBuffer(f)));
-
-      const ledgersMap = {};
-
-      for (let i = 0; i < buffers.length; i++) {
-        const wb = new ExcelJS.Workbook();
-        await wb.xlsx.load(buffers[i]);
-        const ws = wb.getWorksheet("All Transactions") || wb.worksheets[0];
-
-        let headers = [];
-        let partyCol = -1;
-        let amountCol = -1;
-
-        ws.eachRow((row, rowNumber) => {
-          if (rowNumber === 1) {
-            headers = row.values;
-            partyCol = headers.findIndex(h => h === 'Party Name' || h === 'Ledger');
-            amountCol = headers.findIndex(h => h === 'Amount');
-            return;
-          }
-
-          if (partyCol !== -1 && amountCol !== -1) {
-            const party = row.values[partyCol] || 'Misc';
-            let amt = parseFloat(row.values[amountCol]);
-            if (isNaN(amt)) return;
-
-            if (!ledgersMap[party]) ledgersMap[party] = { total: 0 };
-            ledgersMap[party][`b${i}`] = (ledgersMap[party][`b${i}`] || 0) + amt;
-            ledgersMap[party].total += amt;
-          }
-        });
-      }
-
-      const results = Object.keys(ledgersMap).map(party => {
-        const item = { ledger: party, total: ledgersMap[party].total };
-        compareFiles.forEach((_, i) => {
-          item[`b${i}`] = ledgersMap[party][`b${i}`] || 0;
-        });
-        return item;
-      });
-
-      // Sort alphabetically or by total? Let's sort by total descending
-      results.sort((a, b) => b.total - a.total);
-
-      setCompareResults(results);
-    } catch (err) {
-      console.error("Comparison error:", err);
-      alert("Failed to compare statements. Check if they have the correct columns.");
-    } finally {
-      setIsComparing(false);
-    }
-  };
-
-  const handleDownloadCompareExcel = async () => {
-    if (!compareResults) return;
-    try {
-      const outWb = new ExcelJS.Workbook();
-      outWb.creator = 'Savings App';
-      const outWs = outWb.addWorksheet("Comparison");
-
-      outWs.columns = [
-        { header: 'Ledger Name', key: 'ledger', width: 25 },
-        ...compareFiles.map((f, i) => ({ header: f.name || `Bank ${i + 1} Amount`, key: `b${i}`, width: 20 })),
-        { header: 'Total Amount', key: 'total', width: 20 },
-      ];
-
-      compareResults.forEach(item => {
-        const row = { ledger: item.ledger, total: item.total };
-        compareFiles.forEach((_, i) => {
-          row[`b${i}`] = item[`b${i}`];
-        });
-        outWs.addRow(row);
-      });
-      outWs.getRow(1).font = { bold: true };
-
-      const outBuffer = await outWb.xlsx.writeBuffer();
-      const blob = new Blob([outBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const FileSaver = require('file-saver');
-      FileSaver.saveAs(blob, "Statement_Comparison.xlsx");
-
-      // Close modal and reset after download
-      setCompareModalVisible(false);
-      setCompareResults(null);
-      setCompareFiles([]);
-    } catch (err) {
-      console.error("Download error:", err);
-      alert("Failed to download Excel.");
-    }
-  };
 
   const pickDocument = async () => {
     try {
@@ -330,170 +178,119 @@ function UploadScreen({ navigation }) {
     }
   };
 
+  // Sidebar nav items
+  const NAV = [
+    // { id: "import", label: "Import Data", icon: "☁" },
+    { id: "dashboard", label: "Dashboard", icon: "⊞" },
+    { id: "analysis", label: "Analysis", icon: "◷" },
+    { id: "transactions", label: "Transactions", icon: "≡" },
+    { id: "comparisons", label: "Comparisons", icon: "⇄" },
+    { id: "reports", label: "Reports", icon: "☰" },
+    { id: "settings", label: "Settings", icon: "⚙" },
+  ];
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Bank Statement Analyzer</Text>
-      <Text style={styles.subtitle}>
-        Upload your bank statement PDF to get started
-      </Text>
+    <DashboardLayout user={user} activeNav="import" navigation={navigation}>
+      {/* ══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
+      <ScrollView style={[dbStyles.main, { backgroundColor: theme.bg }]} contentContainerStyle={dbStyles.mainContent}>
 
-      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 30, backgroundColor: '#FFF', padding: 15, borderRadius: 12, boxShadow: '0px 2px 4px rgba(0,0,0,0.05)' }}>
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginRight: 25 }} onPress={() => setStatementType('business')}>
-          <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'business' ? '#288cfa' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-            {statementType === 'business' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#288cfa' }} />}
+        {/* Header */}
+        <Text style={[dbStyles.mainTitle, { color: theme.font }]}>Banklyt Statement Analyzer</Text>
+        <Text style={dbStyles.mainSub}>Upload your bank statement and let AI do the rest.</Text>
+
+        {/* Upload card */}
+        <View style={[dbStyles.uploadCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+
+          {/* Account type label */}
+          <Text style={[dbStyles.sectionLabel, { color: theme.muted }]}>Account Type</Text>
+          <View style={[dbStyles.accountTypeBox, { borderColor: accent + "88" }]}>
+            <View style={[dbStyles.radioOuter, { borderColor: accent }]}>
+              <View style={[dbStyles.radioInner, { backgroundColor: accent }]} />
+            </View>
+            <Text style={{ fontSize: 22, marginHorizontal: 10 }}>{isSavings ? "🐷" : "🏦"}</Text>
+            <View>
+              <Text style={[dbStyles.accountTypeTitle, { color: theme.font }]}>
+                {isSavings ? "Savings Account" : "Current Account"}
+              </Text>
+              <Text style={[dbStyles.accountTypeDesc, { color: theme.muted }]}>
+                {isSavings
+                  ? "For personal savings & passbook statements"
+                  : "For business & daily transaction statements"}
+              </Text>
+            </View>
           </View>
-          <Text style={{ fontSize: 16, fontWeight: statementType === 'business' ? '600' : '400', color: statementType === 'business' ? '#242c34' : '#718096' }}>Business Account</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setStatementType('savings')}>
-          <View style={{ height: 20, width: 20, borderRadius: 10, borderWidth: 2, borderColor: statementType === 'savings' ? '#288cfa' : '#CBD5E0', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-            {statementType === 'savings' && <View style={{ height: 10, width: 10, borderRadius: 5, backgroundColor: '#288cfa' }} />}
-          </View>
-          <Text style={{ fontSize: 16, fontWeight: statementType === 'savings' ? '600' : '400', color: statementType === 'savings' ? '#242c34' : '#718096' }}>Savings Account</Text>
-        </TouchableOpacity>
-      </View>
 
-      {uploadError && (
-        <View style={{ backgroundColor: '#fdeded', padding: 15, borderRadius: 8, marginHorizontal: 20, marginBottom: 20, borderWidth: 1, borderColor: '#f5c6cb' }}>
-          <Text style={{ color: '#721c24', fontWeight: 'bold', fontSize: 16, marginBottom: 5 }}>Upload Failed</Text>
-          <Text style={{ color: '#721c24', fontSize: 14 }}>{uploadError}</Text>
-        </View>
-      )}
+          {/* Error banner */}
+          {uploadError && (
+            <View style={[dbStyles.errorBanner, { backgroundColor: theme.pink + "22", borderColor: theme.pink }]}>
+              <Text style={[dbStyles.errorTitle, { color: theme.pink }]}>⚠ Upload Failed</Text>
+              <Text style={[dbStyles.errorDesc, { color: theme.muted }]}>{uploadError}</Text>
+            </View>
+          )}
 
-      {loading ? (
-        <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', backgroundColor: '#fff', padding: 25, borderRadius: 15, boxShadow: '0px 4px 10px rgba(0,0,0,0.1)' }}>
-          <ActivityIndicator size="large" color="#288cfa" />
-          <Text style={{ marginTop: 15, fontSize: 16, fontWeight: '600', color: '#242c34', textAlign: 'center' }}>{loadingText}</Text>
-          <View style={{ width: '100%', height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, marginTop: 15, overflow: 'hidden' }}>
-            <View style={{ width: `${loadingProgress * 100}%`, height: '100%', backgroundColor: '#288cfa', borderRadius: 3 }} />
-          </View>
-        </View>
-      ) : (
-        <View style={{ width: '100%', alignItems: 'center' }}>
-          <TouchableOpacity style={styles.button} onPress={pickDocument}>
-            <Text style={styles.buttonText}>Upload PDF Statement</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.button, { backgroundColor: '#27ae60', marginTop: 15 }]} onPress={() => setCompareModalVisible(true)}>
-            <Text style={styles.buttonText}>⇄ Compare Excel Statements</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Compare Statements Modal */}
-      <Modal visible={compareModalVisible} transparent={true} animationType="fade" onRequestClose={() => {
-        setCompareModalVisible(false);
-        setCompareResults(null);
-      }}>
-        <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={() => {
-          setCompareModalVisible(false);
-          setCompareResults(null);
-        }}>
-          <View style={[styles.modalContent, { width: '90%', maxWidth: compareResults ? 700 : 450, borderRadius: 16, padding: 30, ...Platform.select({ web: { boxShadow: '0 10px 20px rgba(0,0,0,0.20)' }, default: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 } }) }]} onStartShouldSetResponder={() => true}>
-
-            {!compareResults ? (
-              <View
-                {...Platform.select({ web: { onDrop: onCompareDrop, onDragOver: onCompareDragOver, onDragLeave: onCompareDragLeave } })}
-              >
-                <Text style={styles.modalTitle}>Compare Bank Statements</Text>
-                <Text style={{ color: '#7f8c8d', fontSize: 13, marginBottom: 20, textAlign: 'center' }}>
-                  Select two or more Excel statements to compare ledger totals. You can select them or drag and drop files here.
-                </Text>
-
-                <TouchableOpacity onPress={handlePickCompareFile}>
-                  <View style={{ padding: 20, borderRadius: 12, alignItems: 'center', backgroundColor: isCompareDragActive ? '#e8f5e9' : '#f8f9fa', borderWidth: 2, borderStyle: 'dashed', borderColor: isCompareDragActive ? '#27ae60' : '#bdc3c7', marginBottom: 20 }}>
-                    <Text style={{ color: '#34495e', fontSize: 16, fontWeight: '600' }}>
-                      {isCompareDragActive ? "Drop Excel files here..." : "Drag & Drop files or Click to Select"}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                {compareFiles.length > 0 && (
-                  <View style={{ marginBottom: 20 }}>
-                    <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600', marginBottom: 8 }}>Selected Files ({compareFiles.length}):</Text>
-                    <ScrollView style={{ maxHeight: 150 }}>
-                      {compareFiles.map((file, idx) => (
-                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ecf0f1', padding: 10, borderRadius: 8, marginBottom: 8 }}>
-                          <Text style={{ color: '#2c3e50', fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
-                          <TouchableOpacity onPress={() => handleRemoveCompareFile(idx)} style={{ padding: 5 }}>
-                            <Text style={{ color: '#e74c3c', fontWeight: 'bold' }}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.button, { width: '100%', backgroundColor: compareFiles.length < 2 ? '#bdc3c7' : '#27ae60' }]}
-                  onPress={handleCompareStatements}
-                  disabled={compareFiles.length < 2 || isComparing}
-                >
-                  <Text style={styles.buttonText}>{isComparing ? "Processing..." : "Generate Preview"}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={{ marginTop: 15, alignSelf: 'center' }} onPress={() => { setCompareModalVisible(false); setCompareFiles([]); }}>
-                  <Text style={{ color: '#e74c3c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
-                </TouchableOpacity>
+          {/* Drop zone / loading */}
+          {loading ? (
+            <View style={dbStyles.loadingBox}>
+              <ActivityIndicator size="large" color={accent} />
+              <Text style={[dbStyles.loadingText, { color: accent }]}>{loadingText}</Text>
+              <View style={dbStyles.progressTrack}>
+                <View style={[dbStyles.progressFill, { width: `${loadingProgress * 100}%`, backgroundColor: accent }]} />
               </View>
-            ) : (
-              <>
-                <Text style={styles.modalTitle}>Comparison Preview</Text>
+            </View>
+          ) : (
+            <TouchableOpacity style={[dbStyles.dropZone, { borderColor: theme.border, backgroundColor: theme.bg }]} onPress={pickDocument}>
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>📄</Text>
+              <Text style={[dbStyles.dropZoneTitle, { color: theme.font }]}>Upload Bank Statement (PDF)</Text>
+              <Text style={[dbStyles.dropZoneSub, { color: theme.muted }]}>Drag & drop your PDF here or click to browse</Text>
+              <View style={[dbStyles.browseBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Text style={[dbStyles.browseBtnText, { color: theme.font }]}>⊞ Browse Files</Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
-                <View style={{ maxHeight: 300, borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, marginBottom: 20 }}>
-                  <ScrollView>
-                    <ScrollView horizontal>
-                      <View>
-                        <View style={{ flexDirection: 'row', backgroundColor: '#f8f9fa', padding: 10, borderBottomWidth: 1, borderBottomColor: '#e0e0e0', minWidth: 400 }}>
-                          <Text style={{ width: 150, fontWeight: 'bold', color: '#2c3e50', fontSize: 12 }}>Ledger Name</Text>
-                          {compareFiles.map((f, i) => (
-                            <Text key={i} style={{ width: 100, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }} numberOfLines={1}>
-                              {f.name || `Bank ${i + 1}`}
-                            </Text>
-                          ))}
-                          <Text style={{ width: 100, fontWeight: 'bold', color: '#2c3e50', fontSize: 12, textAlign: 'right' }}>Total</Text>
-                        </View>
-                        {compareResults.map((item, idx) => (
-                          <View key={idx} style={{ flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', minWidth: 400 }}>
-                            <Text style={{ width: 150, color: '#34495e', fontSize: 12 }} numberOfLines={1}>{item.ledger}</Text>
-                            {compareFiles.map((_, i) => (
-                              <Text key={i} style={{ width: 100, color: '#7f8c8d', fontSize: 12, textAlign: 'right' }}>{item[`b${i}`].toFixed(2)}</Text>
-                            ))}
-                            <Text style={{ width: 100, color: '#27ae60', fontWeight: 'bold', fontSize: 12, textAlign: 'right' }}>{item.total.toFixed(2)}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </ScrollView>
-                  </ScrollView>
-                </View>
+          {/* Upload PDF button */}
+          {!loading && (
+            <>
+              <TouchableOpacity
+                style={[dbStyles.primaryBtn, { backgroundColor: accent }]}
+                onPress={pickDocument}
+              >
+                <Text style={{ fontSize: 18, marginRight: 8 }}>☁</Text>
+                <Text style={[dbStyles.primaryBtnText, { color: isSavings ? theme.textGreen : theme.font }]}>
+                  Upload PDF Statement
+                </Text>
+              </TouchableOpacity>
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <TouchableOpacity
-                    style={[styles.button, { flex: 1, backgroundColor: '#e74c3c', marginRight: 10 }]}
-                    onPress={() => setCompareResults(null)}
-                  >
-                    <Text style={styles.buttonText}>Back</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.button, { flex: 1, backgroundColor: '#27ae60', marginLeft: 10 }]}
-                    onPress={handleDownloadCompareExcel}
-                  >
-                    <Text style={styles.buttonText}>Download Excel</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+            </>
+          )}
+        </View>
 
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        {/* Feature strip */}
+        {/* <View style={dbStyles.featureStrip}>
+          {[
+            { icon: "🤖", title: "AI Categorization",  sub: "Automatically categorizes transactions with accuracy" },
+            { icon: "🛡", title: "Fraud Detection",    sub: "Identify suspicious activities and potential fraud" },
+            { icon: "📄", title: "GST Insights",       sub: "Get detailed GST breakdowns and tax summaries" },
+            { icon: "📊", title: "Smart Reports",      sub: "Generate professional reports in seconds" },
+          ].map((f, i) => (
+            <View key={i} style={dbStyles.featureItem}>
+              <Text style={{ fontSize: 22, marginBottom: 6 }}>{f.icon}</Text>
+              <Text style={dbStyles.featureTitle}>{f.title}</Text>
+              <Text style={dbStyles.featureSub}>{f.sub}</Text>
+            </View>
+          ))}
+        </View> */}
 
-      <StatusBar style="auto" />
-    </View>
+        <Text style={dbStyles.footerNote}>🛡 Bank-level security  •  Your data is private and encrypted</Text>
+      </ScrollView>
+    </DashboardLayout>
   );
 }
 
 // --- 2. Transactions Screen ---
 function TransactionsScreen({ route, navigation }) {
-  const { transactions } = route.params;
+  const { transactions, user } = route.params || {};
+  const { theme } = useAppTheme();
   const [loading, setLoading] = useState(false);
 
   const generateEntries = async () => {
@@ -548,19 +345,14 @@ function TransactionsScreen({ route, navigation }) {
   };
 
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border, flex: 1, margin: 6 }]}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardDate}>{item.date}</Text>
-        <Text
-          style={[
-            styles.cardAmount,
-            item.type === "credit" ? styles.creditText : styles.debitText,
-          ]}
-        >
+        <Text style={[styles.cardDate, { color: theme.muted }]}>{item.date}</Text>
+        <Text style={[styles.cardAmount, item.type === "credit" ? styles.creditText : styles.debitText]}>
           ₹{item.amount} ({item.type === "credit" ? "Cr" : "Dr"})
         </Text>
       </View>
-      <Text style={styles.cardDesc}>{item.description}</Text>
+      <Text style={[styles.cardDesc, { color: theme.font }]} numberOfLines={2}>{item.description}</Text>
       <View style={styles.badge}>
         <Text style={styles.badgeText}>{item.category}</Text>
       </View>
@@ -568,37 +360,42 @@ function TransactionsScreen({ route, navigation }) {
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.headerTitle}>
-        Extracted Transactions ({transactions.length})
-      </Text>
-      <FlatList
-        data={transactions}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => index.toString()}
-        contentContainerStyle={styles.listContent}
-      />
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.button, styles.fullWidthButton]}
-          onPress={generateEntries}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>Generate Journal Entries</Text>
-          )}
-        </TouchableOpacity>
+    <DashboardLayout user={user} activeNav="transactions" navigation={navigation}>
+      <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: 20 }]}>
+        <Text style={[styles.headerTitle, { color: theme.font }]}>
+          Extracted Transactions ({transactions?.length || 0})
+        </Text>
+        <FlatList
+          data={transactions}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => index.toString()}
+          numColumns={3}
+          columnWrapperStyle={{ paddingHorizontal: 10 }}
+          contentContainerStyle={{ paddingVertical: 10 }}
+        />
+        <View style={[styles.footer, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+          <TouchableOpacity
+            style={[styles.button, styles.fullWidthButton, { backgroundColor: theme.businessAccent }]}
+            onPress={generateEntries}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={[styles.buttonText, { color: theme.textGreen }]}>Generate Journal Entries</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </DashboardLayout>
   );
 }
 
 // --- 3. Journal Entries Screen ---
 function JournalScreen({ route, navigation }) {
-  const { entries } = route.params;
-  const [entriesData, setEntriesData] = useState(entries);
+  const { entries, user } = route.params || {};
+  const { theme } = useAppTheme();
+  const [entriesData, setEntriesData] = useState(entries || []);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
 
@@ -617,10 +414,10 @@ function JournalScreen({ route, navigation }) {
       headerRight: () => (
         <View style={{ flexDirection: "row", marginRight: 5 }}>
           <TouchableOpacity
-            style={{ backgroundColor: "#38A169", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, marginRight: 8 }}
-            onPress={() => navigation.navigate("Ledgers", { entries: entriesData })}
+            style={{ backgroundColor: theme.businessAccent, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, marginRight: 8 }}
+            onPress={() => navigation.navigate("Ledgers", { entries: entriesData, user })}
           >
-            <Text style={{ color: "#FFF", fontWeight: "bold", fontSize: 13 }}>Create Ledgers</Text>
+            <Text style={{ color: theme.textGreen, fontWeight: "bold", fontSize: 13 }}>Create Ledgers</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={{ backgroundColor: "#E74C3C", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 }}
@@ -804,58 +601,24 @@ function JournalScreen({ route, navigation }) {
 
   const renderItem = ({ item, index }) => {
     const isMisc = !item.category || item.category.toLowerCase() === "misc";
-
     return (
-      <View style={styles.entryCard}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
-          <Text style={styles.cardDate}>{item.date}</Text>
+      <View style={[styles.entryCard, { backgroundColor: theme.card, borderColor: theme.border, flex: 1, margin: 6 }]}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <Text style={[styles.cardDate, { color: theme.muted, fontSize: 11 }]}>{item.date}</Text>
           <TouchableOpacity
-            style={[
-              styles.badge,
-              styles.editableBadge,
-              !isMisc && { backgroundColor: "#EBF8FF", borderColor: "#90CDF4" }
-            ]}
+            style={[styles.badge, styles.editableBadge, !isMisc && { backgroundColor: "#EBF8FF", borderColor: "#90CDF4" }]}
             onPress={() => openCategoryModal(index)}
           >
-            <Text style={{
-              color: isMisc ? "#856404" : "#3182CE",
-              fontWeight: "600",
-              fontSize: 12
-            }}>
+            <Text style={{ color: isMisc ? "#856404" : "#3182CE", fontWeight: "600", fontSize: 11 }}>
               {item.category || "Misc"} ▾
             </Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.entryBox}>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              marginBottom: 5,
-            }}
-          >
-            <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>{item.debitAccount} A/c Dr.</Text>
-            <Text style={styles.entryText}>{item.amount}</Text>
-          </View>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              paddingLeft: 20,
-            }}
-          >
-            <Text style={[styles.entryText, { flex: 1, paddingRight: 10 }]}>To {item.creditAccount} A/c</Text>
-            <Text style={styles.entryText}>{item.amount}</Text>
-          </View>
+        <View style={[styles.entryBox, { backgroundColor: theme.isDark ? theme.border : "#FAFAFA", borderColor: theme.border }]}>
+          <Text style={[styles.entryText, { color: theme.font }]} numberOfLines={1}>{item.debitAccount} A/c Dr.  ₹{item.amount}</Text>
+          <Text style={[styles.entryText, { color: theme.font, paddingLeft: 10 }]} numberOfLines={1}>To {item.creditAccount} A/c  ₹{item.amount}</Text>
         </View>
-        <Text style={styles.descText}>
+        <Text style={[styles.descText, { color: theme.muted }]} numberOfLines={2}>
           {item.narration || `(Being ${item.description})`}
         </Text>
       </View>
@@ -863,137 +626,142 @@ function JournalScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.headerTitle}>Journal Entries</Text>
-      <FlatList
-        data={entriesData}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => index.toString()}
-        contentContainerStyle={styles.listContent}
-      />
+    <DashboardLayout user={user} activeNav="transactions" navigation={navigation}>
+      <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: 20 }]}>
+        <Text style={[styles.headerTitle, { color: theme.font }]}>Journal Entries</Text>
+        <FlatList
+          data={entriesData}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => index.toString()}
+          numColumns={3}
+          columnWrapperStyle={{ paddingHorizontal: 10 }}
+          contentContainerStyle={{ paddingVertical: 10 }}
+        />
 
-      {/* Category Dropdown Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Category</Text>
-            {isAddingNew ? (
-              <View style={{ width: '100%' }}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter new category"
-                  value={newCategoryText}
-                  onChangeText={setNewCategoryText}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={[styles.button, styles.fullWidthButton, { marginTop: 10 }]}
-                  onPress={() => {
-                    const newCat = newCategoryText.trim();
-                    if (newCat) {
-                      setCustomCategories(prev => {
-                        const newArr = [...prev];
-                        newArr.splice(newArr.length - 1, 0, newCat); // Insert before "Other"
-                        return newArr;
-                      });
-                      selectCategory(newCat);
-                      setIsAddingNew(false);
-                    }
-                  }}
-                >
-                  <Text style={styles.buttonText}>Add & Select</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <ScrollView>
-                {customCategories.map((cat, i) => (
-                  <TouchableOpacity key={i} style={styles.modalOption} onPress={() => {
-                    if (cat === "Other") {
-                      setIsAddingNew(true);
-                    } else {
-                      selectCategory(cat);
-                    }
-                  }}>
-                    <Text style={styles.modalOptionText}>{cat}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-            <TouchableOpacity style={styles.modalCancel} onPress={() => {
-              if (isAddingNew) {
-                setIsAddingNew(false);
-              } else {
-                setModalVisible(false);
-              }
-            }}>
-              <Text style={styles.modalCancelText}>{isAddingNew ? "Back" : "Cancel"}</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Custom Confirm Modal */}
-      <Modal
-        visible={confirmModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setConfirmModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setConfirmModalVisible(false)}
+        {/* Category Dropdown Modal */}
+        <Modal
+          visible={modalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setModalVisible(false)}
         >
-          <View style={styles.confirmModalContent}>
-            <Text style={styles.confirmModalTitle}>Apply Category</Text>
-            <Text style={styles.confirmModalDesc}>
-              Do you want to apply "{pendingCategory}" to all transactions from this party, or just this one?
-            </Text>
-            <View style={styles.confirmButtonRow}>
-              <TouchableOpacity
-                style={[styles.confirmButton, styles.confirmButtonSecondary]}
-                onPress={() => {
-                  applyCategoryToData(pendingCategory, false);
-                  setConfirmModalVisible(false);
-                }}
-              >
-                <Text style={styles.confirmButtonTextSecondary}>Only This</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmButton, styles.confirmButtonPrimary]}
-                onPress={() => {
-                  applyCategoryToData(pendingCategory, true);
-                  setConfirmModalVisible(false);
-                }}
-              >
-                <Text style={styles.confirmButtonTextPrimary}>Apply All</Text>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Category</Text>
+              {isAddingNew ? (
+                <View style={{ width: '100%' }}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter new category"
+                    value={newCategoryText}
+                    onChangeText={setNewCategoryText}
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    style={[styles.button, styles.fullWidthButton, { marginTop: 10 }]}
+                    onPress={() => {
+                      const newCat = newCategoryText.trim();
+                      if (newCat) {
+                        setCustomCategories(prev => {
+                          const newArr = [...prev];
+                          newArr.splice(newArr.length - 1, 0, newCat); // Insert before "Other"
+                          return newArr;
+                        });
+                        selectCategory(newCat);
+                        setIsAddingNew(false);
+                      }
+                    }}
+                  >
+                    <Text style={styles.buttonText}>Add & Select</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <ScrollView>
+                  {customCategories.map((cat, i) => (
+                    <TouchableOpacity key={i} style={styles.modalOption} onPress={() => {
+                      if (cat === "Other") {
+                        setIsAddingNew(true);
+                      } else {
+                        selectCategory(cat);
+                      }
+                    }}>
+                      <Text style={styles.modalOptionText}>{cat}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+              <TouchableOpacity style={styles.modalCancel} onPress={() => {
+                if (isAddingNew) {
+                  setIsAddingNew(false);
+                } else {
+                  setModalVisible(false);
+                }
+              }}>
+                <Text style={styles.modalCancelText}>{isAddingNew ? "Back" : "Cancel"}</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.confirmCancel}
-              onPress={() => setConfirmModalVisible(false)}
-            >
-              <Text style={styles.confirmCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Custom Confirm Modal */}
+        <Modal
+          visible={confirmModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setConfirmModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setConfirmModalVisible(false)}
+          >
+            <View style={styles.confirmModalContent}>
+              <Text style={styles.confirmModalTitle}>Apply Category</Text>
+              <Text style={styles.confirmModalDesc}>
+                Do you want to apply "{pendingCategory}" to all transactions from this party, or just this one?
+              </Text>
+              <View style={styles.confirmButtonRow}>
+                <TouchableOpacity
+                  style={[styles.confirmButton, styles.confirmButtonSecondary]}
+                  onPress={() => {
+                    applyCategoryToData(pendingCategory, false);
+                    setConfirmModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.confirmButtonTextSecondary}>Only This</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmButton, styles.confirmButtonPrimary]}
+                  onPress={() => {
+                    applyCategoryToData(pendingCategory, true);
+                    setConfirmModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.confirmButtonTextPrimary}>Apply All</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                onPress={() => setConfirmModalVisible(false)}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      </View>
+    </DashboardLayout>
   );
 }
 
 // --- 4. Ledgers Screen ---
-function LedgersScreen({ route }) {
-  const { entries } = route.params;
+function LedgersScreen({ route, navigation }) {
+  const { entries, user } = route.params || {};
+  const { theme } = useAppTheme();
 
   // Extract unique accounts
   const accountsSet = new Set();
-  entries.forEach(e => {
+  (entries || []).forEach(e => {
     if (e.debitAccount) accountsSet.add(e.debitAccount);
     if (e.creditAccount) accountsSet.add(e.creditAccount);
   });
@@ -1106,19 +874,19 @@ function LedgersScreen({ route }) {
       const amount = parseFloat(entry.amount);
       if (entry.debitAccount === activeTab) {
         totalDr += amount;
-        ledgerEntries.push({ 
-          date: entry.date, 
-          narration: `To ${entry.creditAccount} A/c\n${entry.narration || ''}`, 
-          dr: amount, 
-          cr: '' 
+        ledgerEntries.push({
+          date: entry.date,
+          narration: `To ${entry.creditAccount} A/c\n${entry.narration || ''}`,
+          dr: amount,
+          cr: ''
         });
       } else if (entry.creditAccount === activeTab) {
         totalCr += amount;
-        ledgerEntries.push({ 
-          date: entry.date, 
-          narration: `By ${entry.debitAccount} A/c\n${entry.narration || ''}`, 
-          dr: '', 
-          cr: amount 
+        ledgerEntries.push({
+          date: entry.date,
+          narration: `By ${entry.debitAccount} A/c\n${entry.narration || ''}`,
+          dr: '',
+          cr: amount
         });
       }
     });
@@ -1127,123 +895,723 @@ function LedgersScreen({ route }) {
     const balStr = Math.abs(bal) + (bal >= 0 ? " Dr" : " Cr");
 
     return (
-      <View style={styles.ledgerContainer}>
+      <View style={[styles.ledgerContainer, { backgroundColor: theme.card }]}>
         <View style={styles.ledgerHeader}>
-          <Text style={styles.ledgerTitle}>ACCOUNT : {activeTab.toUpperCase()}</Text>
+          <Text style={[styles.ledgerTitle, { color: theme.font }]}>ACCOUNT : {activeTab.toUpperCase()}</Text>
         </View>
-        <View style={styles.ledgerTableHeader}>
-          <Text style={[styles.ledgerCell, { flex: 2, fontWeight: 'bold' }]}>Date</Text>
-          <Text style={[styles.ledgerCell, { flex: 3, fontWeight: 'bold' }]}>Particulars</Text>
-          <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', fontWeight: 'bold' }]}>Dr</Text>
-          <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', fontWeight: 'bold' }]}>Cr</Text>
+        <View style={[styles.ledgerTableHeader, { backgroundColor: theme.bg }]}>
+          <Text style={[styles.ledgerCell, { flex: 2, fontWeight: 'bold', color: theme.font }]}>Date</Text>
+          <Text style={[styles.ledgerCell, { flex: 3, fontWeight: 'bold', color: theme.font }]}>Particulars</Text>
+          <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', fontWeight: 'bold', color: theme.font }]}>Dr</Text>
+          <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', fontWeight: 'bold', color: theme.font }]}>Cr</Text>
         </View>
         <FlatList
           data={ledgerEntries}
           keyExtractor={(item, index) => index.toString()}
           renderItem={({ item }) => (
-            <View style={styles.ledgerRow}>
-              <Text style={[styles.ledgerCell, { flex: 2 }]}>{item.date}</Text>
-              <Text style={[styles.ledgerCell, { flex: 3 }]}>{item.narration}</Text>
-              <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right' }]}>{item.dr}</Text>
-              <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right' }]}>{item.cr}</Text>
+            <View style={[styles.ledgerRow, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.ledgerCell, { flex: 2, color: theme.font }]}>{item.date}</Text>
+              <Text style={[styles.ledgerCell, { flex: 3, color: theme.font }]}>{item.narration}</Text>
+              <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', color: theme.font }]}>{item.dr}</Text>
+              <Text style={[styles.ledgerCell, { flex: 2, textAlign: 'right', color: theme.font }]}>{item.cr}</Text>
             </View>
           )}
         />
-        <View style={styles.ledgerFooter}>
-          <Text style={styles.ledgerTotalText}>Total Dr: {totalDr}    Total Cr: {totalCr}</Text>
-          <Text style={[styles.ledgerTotalText, { marginTop: 5 }]}>Closing Balance : {balStr}</Text>
+        <View style={[styles.ledgerFooter, { backgroundColor: theme.bg }]}>
+          <Text style={[styles.ledgerTotalText, { color: theme.font }]}>Total Dr: {totalDr}    Total Cr: {totalCr}</Text>
+          <Text style={[styles.ledgerTotalText, { marginTop: 5, color: theme.font }]}>Closing Balance : {balStr}</Text>
         </View>
       </View>
     );
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.tabsContainer}>
-        <ScrollView
-          ref={tabsRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabsScroll}
-        >
-          {accounts.map(acc => (
-            <TouchableOpacity
-              key={acc}
-              style={[styles.tab, activeTab === acc && styles.activeTab]}
-              onPress={() => setActiveTab(acc)}
-            >
-              <Text style={[styles.tabText, activeTab === acc && styles.activeTabText]}>{acc}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+    <DashboardLayout user={user} activeNav="transactions" navigation={navigation}>
+      <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: 20 }]}>
+        <View style={[styles.tabsContainer, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+          <ScrollView
+            ref={tabsRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabsScroll}
+          >
+            {accounts.map(acc => (
+              <TouchableOpacity
+                key={acc}
+                style={[styles.tab, activeTab === acc && [styles.activeTab, { borderBottomColor: theme.businessAccent }]]}
+                onPress={() => setActiveTab(acc)}
+              >
+                <Text style={[styles.tabText, { color: theme.muted }, activeTab === acc && [styles.activeTabText, { color: theme.businessAccent }]]}>{acc}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
-      {accounts.length > 0 && renderLedger()}
+        {accounts.length > 0 && renderLedger()}
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.button, styles.downloadButton, styles.fullWidthButton, { backgroundColor: "#E74C3C" }]}
-          onPress={handleDownloadLedgersPDF}
-        >
-          <Text style={styles.buttonText}>Download Ledgers PDF</Text>
-        </TouchableOpacity>
+        <View style={[styles.footer, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+          <TouchableOpacity
+            style={[styles.button, styles.downloadButton, styles.fullWidthButton, { backgroundColor: theme.businessAccent }]}
+            onPress={handleDownloadLedgersPDF}
+          >
+            <Text style={[styles.buttonText, { color: theme.textGreen }]}>Download Ledgers PDF</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </DashboardLayout>
+  );
+}
+
+// ─── Landing wrapper (stateless; just routes onLogin to Upload) ───────────────
+function LandingWrapper({ navigation }) {
+  const handleLogin = ({ type, user }) => {
+    navigation.replace("Upload", { user: { ...user, type } });
+  };
+  return (
+    <LandingScreen
+      onCurrentLogin={handleLogin}
+      onSavingsLogin={handleLogin}
+    />
+  );
+}
+
+// --- New Screens (Comparisons & Reports) ---
+function ComparisonsScreen({ route, navigation }) {
+  const { user } = route.params || {};
+  const { theme } = useAppTheme();
+
+  const [compareFiles, setCompareFiles] = useState([]);
+  const [isComparing, setIsComparing] = useState(false);
+  const [compareResults, setCompareResults] = useState(null);
+  const [isCompareDragActive, setIsCompareDragActive] = useState(false);
+
+  const handlePickCompareFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', '*/*'],
+        copyToCacheDirectory: true,
+        multiple: true,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setCompareFiles(prev => [...prev, ...result.assets]);
+      }
+    } catch (err) {
+      console.warn("Failed to pick file:", err);
+    }
+  };
+
+  const handleRemoveCompareFile = (index) => {
+    setCompareFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const onCompareDrop = (e) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault();
+      setIsCompareDragActive(false);
+      if (e.dataTransfer && e.dataTransfer.files) {
+        const filesArray = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
+        if (filesArray.length > 0) {
+          setCompareFiles(prev => [...prev, ...filesArray]);
+        }
+      }
+    }
+  };
+
+  const onCompareDragOver = (e) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault();
+      setIsCompareDragActive(true);
+    }
+  };
+
+  const onCompareDragLeave = (e) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault();
+      setIsCompareDragActive(false);
+    }
+  };
+
+  const handleCompareStatements = async () => {
+    if (compareFiles.length < 2) {
+      alert("Please select at least two statements.");
+      return;
+    }
+
+    if (Platform.OS !== 'web') {
+      alert("Comparison is supported on Web only for now.");
+      return;
+    }
+
+    setIsComparing(true);
+    try {
+      const getBuffer = async (file) => {
+        if (file.uri) {
+          const response = await fetch(file.uri);
+          return await response.arrayBuffer();
+        } else {
+          return await file.arrayBuffer(); // Native Web File object
+        }
+      };
+
+      const buffers = await Promise.all(compareFiles.map(f => getBuffer(f)));
+      const ledgersMap = {};
+
+      for (let i = 0; i < buffers.length; i++) {
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buffers[i]);
+        const ws = wb.getWorksheet("All Transactions") || wb.worksheets[0];
+
+        let headers = [];
+        let partyCol = -1;
+        let amountCol = -1;
+
+        ws.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) {
+            headers = row.values;
+            partyCol = headers.findIndex(h => h === 'Party Name' || h === 'Ledger');
+            amountCol = headers.findIndex(h => h === 'Amount');
+            return;
+          }
+
+          if (partyCol !== -1 && amountCol !== -1) {
+            const party = row.values[partyCol] || 'Misc';
+            let amt = parseFloat(row.values[amountCol]);
+            if (isNaN(amt)) return;
+
+            if (!ledgersMap[party]) ledgersMap[party] = { total: 0 };
+            ledgersMap[party][`b${i}`] = (ledgersMap[party][`b${i}`] || 0) + amt;
+            ledgersMap[party].total += amt;
+          }
+        });
+      }
+
+      const results = Object.keys(ledgersMap).map(party => {
+        const item = { ledger: party, total: ledgersMap[party].total };
+        compareFiles.forEach((_, i) => {
+          item[`b${i}`] = ledgersMap[party][`b${i}`] || 0;
+        });
+        return item;
+      });
+
+      results.sort((a, b) => b.total - a.total);
+      setCompareResults(results);
+    } catch (err) {
+      console.error("Comparison error:", err);
+      alert("Failed to compare statements. Check if they have the correct columns.");
+    } finally {
+      setIsComparing(false);
+    }
+  };
+
+  const handleDownloadCompareExcel = async () => {
+    if (!compareResults) return;
+    try {
+      const outWb = new ExcelJS.Workbook();
+      outWb.creator = 'Bank Analyzer';
+      const outWs = outWb.addWorksheet("Comparison");
+
+      outWs.columns = [
+        { header: 'Ledger Name', key: 'ledger', width: 25 },
+        ...compareFiles.map((f, i) => ({ header: f.name || `Bank ${i + 1} Amount`, key: `b${i}`, width: 20 })),
+        { header: 'Total Amount', key: 'total', width: 20 },
+      ];
+
+      compareResults.forEach(item => {
+        const row = { ledger: item.ledger, total: item.total };
+        compareFiles.forEach((_, i) => {
+          row[`b${i}`] = item[`b${i}`];
+        });
+        outWs.addRow(row);
+      });
+      outWs.getRow(1).font = { bold: true };
+
+      const outBuffer = await outWb.xlsx.writeBuffer();
+      const blob = new Blob([outBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const FileSaver = require('file-saver');
+      FileSaver.saveAs(blob, "Statement_Comparison.xlsx");
+    } catch (err) {
+      console.error("Download error:", err);
+      alert("Failed to download Excel.");
+    }
+  };
+
+  return (
+    <DashboardLayout user={user} activeNav="comparisons" navigation={navigation}>
+      <ScrollView style={[dbStyles.main, { backgroundColor: theme.bg }]} contentContainerStyle={dbStyles.mainContent}>
+        <Text style={[dbStyles.mainTitle, { color: theme.font }]}>Compare Excel Statements</Text>
+        <Text style={dbStyles.mainSub}>Upload Excel file and compare with bank statements</Text>
+
+        <View style={[dbStyles.uploadCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {!compareResults ? (
+            <View {...Platform.select({ web: { onDrop: onCompareDrop, onDragOver: onCompareDragOver, onDragLeave: onCompareDragLeave } })}>
+              <TouchableOpacity onPress={handlePickCompareFile}>
+                <View style={{
+                  padding: 20, borderRadius: 12, alignItems: "center",
+                  backgroundColor: isCompareDragActive ? (theme.isDark ? "#c7e3d4" : "#e8f5ee") : theme.card,
+                  borderWidth: 2, borderStyle: "dashed", borderColor: isCompareDragActive ? theme.businessAccent : theme.border, marginBottom: 20
+                }}>
+                  <Text style={{ color: theme.font, fontSize: 16, fontWeight: "600" }}>
+                    {isCompareDragActive ? "Drop Excel files here..." : "Drag & Drop or Click to Select"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {compareFiles.length > 0 && (
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ fontSize: 12, color: theme.muted, fontWeight: "600", marginBottom: 8 }}>
+                    Selected Files ({compareFiles.length}):
+                  </Text>
+                  <ScrollView style={{ maxHeight: 150 }}>
+                    {compareFiles.map((file, idx) => (
+                      <View key={idx} style={{
+                        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                        backgroundColor: theme.bg, padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: theme.border
+                      }}>
+                        <Text style={{ color: theme.font, fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
+                        <TouchableOpacity onPress={() => handleRemoveCompareFile(idx)} style={{ padding: 5 }}>
+                          <Text style={{ color: "#e74c3c", fontWeight: "bold" }}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.button, { width: "100%", backgroundColor: compareFiles.length < 2 ? theme.border : theme.businessAccent }]}
+                onPress={handleCompareStatements}
+                disabled={compareFiles.length < 2 || isComparing}
+              >
+                <Text style={styles.buttonText}>{isComparing ? "Processing..." : "Generate Preview"}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.modalTitle, { color: theme.font }]}>Comparison Preview</Text>
+              <View style={{ maxHeight: 400, borderWidth: 1, borderColor: theme.border, borderRadius: 8, marginBottom: 20 }}>
+                <ScrollView><ScrollView horizontal><View>
+                  <View style={{ flexDirection: "row", backgroundColor: theme.sidebar, padding: 10, borderBottomWidth: 1, borderBottomColor: theme.border, minWidth: 400 }}>
+                    <Text style={{ width: 150, fontWeight: "bold", color: theme.font, fontSize: 12 }}>Ledger Name</Text>
+                    {compareFiles.map((f, i) => (
+                      <Text key={i} style={{ width: 100, fontWeight: "bold", color: theme.font, fontSize: 12, textAlign: "right" }} numberOfLines={1}>
+                        {f.name || `Bank ${i + 1}`}
+                      </Text>
+                    ))}
+                    <Text style={{ width: 100, fontWeight: "bold", color: theme.font, fontSize: 12, textAlign: "right" }}>Total</Text>
+                  </View>
+                  {compareResults.map((item, idx) => (
+                    <View key={idx} style={{ flexDirection: "row", padding: 10, borderBottomWidth: 1, borderBottomColor: theme.border, minWidth: 400 }}>
+                      <Text style={{ width: 150, color: theme.font, fontSize: 12 }} numberOfLines={1}>{item.ledger}</Text>
+                      {compareFiles.map((_, i) => (
+                        <Text key={i} style={{ width: 100, color: theme.muted, fontSize: 12, textAlign: "right" }}>{item[`b${i}`].toFixed(2)}</Text>
+                      ))}
+                      <Text style={{ width: 100, color: theme.businessAccent, fontWeight: "bold", fontSize: 12, textAlign: "right" }}>{item.total.toFixed(2)}</Text>
+                    </View>
+                  ))}
+                </View></ScrollView></ScrollView>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: "#e74c3c", marginRight: 10 }]} onPress={() => setCompareResults(null)}>
+                  <Text style={styles.buttonText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: theme.businessAccent, marginLeft: 10 }]} onPress={handleDownloadCompareExcel}>
+                  <Text style={styles.buttonText}>Download Excel</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      </ScrollView>
+    </DashboardLayout>
+  );
+}
+
+function ReportsScreen({ route, navigation }) {
+  const { user } = route.params || {};
+  const { theme } = useAppTheme();
+  return (
+    <DashboardLayout user={user} activeNav="reports" navigation={navigation}>
+      <View style={[dbStyles.mainContent, { flex: 1, backgroundColor: theme.bg }]}>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.font, marginBottom: 20 }}>Previous Reports</Text>
+        <Text style={{ color: theme.muted }}>
+          No previous reports found.
+        </Text>
+      </View>
+    </DashboardLayout>
   );
 }
 
 // --- Navigation ---
-export default function App() {
+function AppContent() {
+  const { theme } = useAppTheme();
+
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Upload"
+        initialRouteName="Landing"
         screenOptions={{
-          headerStyle: { backgroundColor: "#103766" },
-          headerTintColor: "#fff",
-          headerTitleStyle: { fontWeight: "bold" },
+          headerShown: false,
+          headerStyle: { backgroundColor: theme.bg },
+          headerTintColor: theme.font,
+          headerTitleStyle: { fontWeight: "bold", color: theme.font }
         }}
       >
-        <Stack.Screen
-          name="Upload"
-          component={UploadScreen}
-          options={{ title: "Import Data" }}
-        />
+        <Stack.Screen name="Landing" component={LandingWrapper} />
+
+        {/* Dashboard layout screens */}
+        <Stack.Screen name="Upload" component={UploadScreen} />
+        <Stack.Screen name="Comparisons" component={ComparisonsScreen} />
+        <Stack.Screen name="Reports" component={ReportsScreen} />
+
+        {/* Inner data screens (keep headers for back navigation) */}
         <Stack.Screen
           name="Transactions"
           component={TransactionsScreen}
-          options={{ title: "Transactions" }}
+          options={{ headerShown: true, title: "Transactions" }}
         />
         <Stack.Screen
           name="Journal"
           component={JournalScreen}
-          options={{ title: "General Journal" }}
+          options={{ headerShown: true, title: "General Journal" }}
         />
         <Stack.Screen
           name="Ledgers"
           component={LedgersScreen}
-          options={{ title: "Ledgers" }}
+          options={{ headerShown: true, title: "Ledgers" }}
         />
         <Stack.Screen
           name="SavingsTransactions"
           component={SavingsTransactionsScreen}
-          options={{ title: "Savings Transactions" }}
+          options={{ headerShown: true, title: "Savings Transactions" }}
         />
         <Stack.Screen
           name="SavingsReport"
           component={SavingsReportScreen}
-          options={{ title: "Savings Report" }}
+          options={{ headerShown: true, title: "Savings Report" }}
         />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
+export default function App() {
+  const [isDark, setIsDark] = useState(false); // default: light mode
+  const theme = isDark ? darkTheme : lightTheme;
+  const toggleTheme = () => setIsDark((prev) => !prev);
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      <AppContent />
+    </ThemeContext.Provider>
+  );
+}
+
+// --- Upload screen profile-card styles ---
+const uploadStyles = StyleSheet.create({
+  profileCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 14,
+    ...Platform.select({
+      web: { boxShadow: "0 4px 16px rgba(0,0,0,0.08)" },
+      default: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 6 },
+    }),
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileName: {
+    color: "#1A202C",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  accountBadge: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 4,
+  },
+  accountBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  profileEmail: {
+    color: "#64748b",
+    fontSize: 12,
+  },
+  logoutBtn: {
+    borderWidth: 1,
+    borderColor: "#e11d4833",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  logoutText: {
+    color: "#e11d48",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  uploadHeading: {
+    color: "#1A202C",
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  uploadSub: {
+    color: "#64748b",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+});
+
+// Removed dbStyles root layout, moved to ThemeAndLayout.js
+Object.assign(dbStyles, StyleSheet.create({
+  // Upload card
+  uploadCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 24,
+    ...Platform.select({
+      web: { boxShadow: "0 4px 20px rgba(0,0,0,0.08)" },
+      default: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 8 },
+    }),
+  },
+  sectionLabel: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  accountTypeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    backgroundColor: "#F8FAFC",
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  accountTypeTitle: {
+    color: "#1A202C",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  accountTypeDesc: {
+    color: "#64748b",
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  // Error
+  errorBanner: {
+    backgroundColor: "#fff5f5",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: "#e11d48",
+  },
+  errorTitle: {
+    color: "#e11d48",
+    fontWeight: "700",
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  errorDesc: {
+    color: "#1A202C",
+    fontSize: 13,
+    opacity: 0.85,
+  },
+
+  // Drop zone
+  dropZone: {
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 28,
+    alignItems: "center",
+    marginBottom: 20,
+    backgroundColor: "#F8FAFC",
+  },
+  dropZoneTitle: {
+    color: "#1A202C",
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  dropZoneSub: {
+    color: "#64748b",
+    fontSize: 12,
+    marginBottom: 14,
+  },
+  browseBtn: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#FFFFFF",
+  },
+  browseBtnText: {
+    color: "#1A202C",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Loading
+  loadingBox: {
+    alignItems: "center",
+    padding: 28,
+    marginBottom: 20,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+  },
+  loadingText: {
+    marginTop: 14,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  progressTrack: {
+    width: "80%",
+    height: 4,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 2,
+    marginTop: 14,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+
+  // Buttons
+  primaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginBottom: 12,
+  },
+  primaryBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  orDivider: {
+    color: "#64748b",
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "600",
+    marginVertical: 10,
+    letterSpacing: 1,
+  },
+  secondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  secondaryBtnSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  // Feature strip
+  featureStrip: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+    marginBottom: 20,
+  },
+  featureItem: {
+    flex: 1,
+    minWidth: 130,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  featureTitle: {
+    color: "#1A202C",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  featureSub: {
+    color: "#64748b",
+    fontSize: 11,
+    lineHeight: 15,
+  },
+
+  footerNote: {
+    color: "#64748b",
+    fontSize: 12,
+    textAlign: "center",
+    paddingBottom: 20,
+  },
+
+  // mainTitle & mainSub
+  mainTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  mainSub: {
+    color: "#64748b",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 28,
+  },
+}));
+
 // --- Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4F7FB",
+    backgroundColor: "#23232c",
     alignItems: "center",
     justifyContent: "center",
   },

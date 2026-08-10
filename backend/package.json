@@ -1,7 +1,7 @@
 {
-  "name": "bank-journal-backend",
+  "name": "banklyt-backend",
   "version": "1.0.0",
-  "description": "Backend for converting bank statements to journal entries",
+  "description": "Backend for converting banklyt statements to journal entries",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

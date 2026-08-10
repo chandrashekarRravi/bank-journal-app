@@ -24,7 +24,7 @@ app.use('/api/savings', savingsRouter);
 
 // Root health-check endpoint
 app.get('/', (req, res) => {
-  res.send('Bank Journal API Backend is running successfully!');
+  res.send('Banklyt API Backend is running successfully!');
 });
 
 // Apply rate limiting to API endpoints

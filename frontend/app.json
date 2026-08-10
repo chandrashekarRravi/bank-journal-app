@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Bank Journal",
-    "slug": "bank-journal",
+    "name": "Banklyt",
+    "slug": "banklyt",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -10,10 +10,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.weandyou.bankjournal"
+      "bundleIdentifier": "com.weandyou.banklyt"
     },
     "android": {
-      "package": "com.weandyou.bankjournal"
+      "package": "com.weandyou.banklyt"
     },
     "web": {},
     "plugins": [

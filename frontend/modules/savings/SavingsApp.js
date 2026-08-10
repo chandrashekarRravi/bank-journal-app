@@ -2,15 +2,18 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, TextInput, ScrollView, Dimensions } from "react-native";
 import { PieChart, BarChart, LineChart } from "react-native-chart-kit";
 import { generateSavingsPDF } from "./pdfGenerator/generateSavingsPDF";
-import ExcelJS from 'exceljs/dist/exceljs.min.js';
+// ExcelJS is web-only — lazy require to avoid native crash
+const ExcelJS = Platform.OS === 'web' ? require('exceljs/dist/exceljs.min.js') : null;
 import * as DocumentPicker from 'expo-document-picker';
+import { DashboardLayout, useAppTheme } from "../../ThemeAndLayout";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://bank-journal-backend.onrender.com" || "http://192.168.0.7:3000";
 
 // 1. Savings Transactions Screen (equivalent to TransactionsScreen) || "http://192.168.0.6:3000" 
 export function SavingsTransactionsScreen({ route, navigation }) {
-  const { transactions, metadata } = route.params;
+  const { transactions, metadata, user } = route.params || {};
   const [txns, setTxns] = useState(transactions);
+  const { theme } = useAppTheme();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -62,49 +65,41 @@ export function SavingsTransactionsScreen({ route, navigation }) {
   };
 
   const renderItem = ({ item, index }) => (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border, flex: 1, margin: 6 }]}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardDate}>{item.date}</Text>
-        <Text
-          style={[
-            styles.cardAmount,
-            item.type === "Credit" ? styles.creditText : styles.debitText,
-          ]}
-        >
+        <Text style={[styles.cardDate, { color: theme.muted }]}>{item.date}</Text>
+        <Text style={[styles.cardAmount, item.type === "Credit" ? styles.creditText : styles.debitText]}>
           ₹{item.amount} ({item.type === "Credit" ? "Cr" : "Dr"})
         </Text>
       </View>
-      <Text style={styles.cardPartyName}>{item.partyName || 'Unknown Party'}</Text>
-      <Text style={styles.cardDesc}>{item.description}</Text>
-      <View style={styles.badgeContainer}>
-        <TouchableOpacity style={styles.badge} onPress={() => openCategoryModal(index)}>
-          <Text style={styles.badgeText}>{item.category || "Misc"} ▾</Text>
-        </TouchableOpacity>
-        <Text style={[
-          styles.narrationText,
-          item.type === "Credit" && { color: "#27AE60" }
-        ]}>{item.narration}</Text>
-      </View>
+      <Text style={[styles.cardPartyName, { color: theme.font }]} numberOfLines={1}>{item.partyName || 'Unknown'}</Text>
+      <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={2}>{item.description}</Text>
+      <TouchableOpacity style={styles.badge} onPress={() => openCategoryModal(index)}>
+        <Text style={styles.badgeText}>{item.category || "Misc"} ▾</Text>
+      </TouchableOpacity>
     </View>
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.headerTitle}>
-        Categorized Savings Transactions ({txns.length})
-      </Text>
-      <FlatList
-        data={txns}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => index.toString()}
-        contentContainerStyle={styles.listContent}
-      />
-      <View style={styles.footer}>
+    <DashboardLayout user={user} activeNav="transactions" navigation={navigation}>
+      <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: 20 }]}>
+        <Text style={[styles.headerTitle, { color: theme.font }]}>
+          Categorized Savings Transactions ({txns?.length || 0})
+        </Text>
+        <FlatList
+          data={txns}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => index.toString()}
+          numColumns={3}
+          columnWrapperStyle={{ paddingHorizontal: 10 }}
+          contentContainerStyle={{ paddingVertical: 10 }}
+        />
+        <View style={[styles.footer, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
         <TouchableOpacity
-          style={[styles.button, styles.fullWidthButton]}
-          onPress={() => navigation.navigate("SavingsReport", { transactions: txns, metadata })}
+          style={[styles.button, styles.fullWidthButton, { backgroundColor: theme.green }]}
+          onPress={() => navigation.navigate("SavingsReport", { transactions: txns, metadata, user })}
         >
-          <Text style={styles.buttonText}>Generate Savings Report</Text>
+          <Text style={[styles.buttonText, { color: theme.textGreen }]}>Generate Savings Report</Text>
         </TouchableOpacity>
       </View>
 
@@ -172,25 +167,29 @@ export function SavingsTransactionsScreen({ route, navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
-    </View>
+      </View>
+    </DashboardLayout>
   );
 }
 
 // 2. Savings Report Screen (shows summary and PDF options)
 // Helper for neumorphic UI
-const NeumorphicView = ({ children, style, inset }) => {
+const NeumorphicView = ({ children, style, inset, theme }) => {
+  const isDark = theme?.isDark;
+  const bg = isDark ? (theme?.card || '#2c2c38') : '#E0E5EC';
+  const s1 = isDark ? 'rgba(0,0,0,0.4)' : '#d1d9e6';
+  const s2 = isDark ? 'rgba(255,255,255,0.04)' : '#ffffff';
   const shadowStyle = Platform.OS === 'web'
-    ? { boxShadow: inset ? 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff' : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff' }
-    : {
-      boxShadow: '4px 4px 5px rgba(163, 177, 198, 0.5), -4px -4px 5px rgba(255, 255, 255, 0.5)',
-    };
-  return <View style={[{ backgroundColor: '#E0E5EC', borderRadius: 12 }, shadowStyle, style]}>{children}</View>;
+    ? { boxShadow: inset ? `inset 4px 4px 8px ${s1}, inset -4px -4px 8px ${s2}` : `4px 4px 12px ${s1}, -4px -4px 12px ${s2}` }
+    : {};
+  return <View style={[{ backgroundColor: bg, borderRadius: 12 }, shadowStyle, style]}>{children}</View>;
 };
 
 export function SavingsReportScreen({ route, navigation }) {
-  const { transactions, metadata } = route.params;
+  const { transactions, metadata, user } = route.params || {};
   const [localTransactions, setLocalTransactions] = useState(transactions);
   const [currentMetadata, setCurrentMetadata] = useState(metadata || {});
+  const { theme } = useAppTheme();
 
   // Chart Filters
   const [chartFilter, setChartFilter] = useState('All Time');
@@ -481,80 +480,85 @@ export function SavingsReportScreen({ route, navigation }) {
   const lineDebits = lineLabels.map(m => monthlyDataMap[m] ? monthlyDataMap[m].debit : 0);
   const lineNet = lineLabels.map(m => monthlyDataMap[m] ? monthlyDataMap[m].net : 0);
 
-  const chartWidth = Dimensions.get("window").width;
+  const [chartContainerWidth, setChartContainerWidth] = React.useState(Dimensions.get('window').width - 80);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 24, paddingBottom: 60 }}>
+    <DashboardLayout user={user} activeNav="reports" navigation={navigation}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: theme.bg }]}
+        contentContainerStyle={{ padding: 24, paddingBottom: 60 }}
+        onLayout={e => setChartContainerWidth(e.nativeEvent.layout.width - 48)}
+      >
       {/* Top Header */}
       <View style={{ marginBottom: 20 }}>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#242c34', marginBottom: 16 }}>Savings Account Summary</Text>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: theme.font, marginBottom: 16 }}>Savings Account Summary</Text>
         <TouchableOpacity onPress={handleGeneratePDF} style={{ width: '100%' }}>
-          <NeumorphicView style={{ paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#34495e', fontWeight: '600', fontSize: 14 }}>↓ Export / Share PDF</Text>
+          <NeumorphicView theme={theme} style={{ paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: theme.green, fontWeight: '600', fontSize: 14 }}>↓ Export / Share PDF</Text>
           </NeumorphicView>
         </TouchableOpacity>
       </View>
 
       {/* Main Top Card */}
-      <NeumorphicView style={{ padding: 24, marginBottom: 24, borderRadius: 16 }}>
+      <NeumorphicView theme={theme} style={{ padding: 24, marginBottom: 24, borderRadius: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
           <View>
-            <Text style={{ fontSize: 12, color: '#7f8c8d', fontWeight: '600', marginBottom: 4 }}>Account Holder</Text>
+            <Text style={{ fontSize: 12, color: theme.muted, fontWeight: '600', marginBottom: 4 }}>Account Holder</Text>
             <TextInput
-              style={{ fontSize: 18, fontWeight: 'bold', color: '#242c34', outlineStyle: 'none', padding: 0 }}
+              style={{ fontSize: 18, fontWeight: 'bold', color: theme.font, outlineStyle: 'none', padding: 0 }}
               value={currentMetadata.holderName || ''}
               placeholder="Enter Name"
+              placeholderTextColor={theme.muted}
               onChangeText={(text) => setCurrentMetadata({ ...currentMetadata, holderName: text })}
             />
           </View>
-          <NeumorphicView style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, height: 32, justifyContent: 'center' }}>
-            <Text style={{ color: '#34495e', fontSize: 13, fontWeight: '600' }}>📅 {chartFilter} v</Text>
+          <NeumorphicView theme={theme} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, height: 32, justifyContent: 'center' }}>
+            <Text style={{ color: theme.font, fontSize: 13, fontWeight: '600' }}>📅 {chartFilter} v</Text>
           </NeumorphicView>
         </View>
 
         {/* Metrics Row */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 24 }}>
           {[
-            { title: 'Total Credits', value: formatCurrency(totalCredits), sub: '100% of inflow', icon: '↓' },
-            { title: 'Total Debits', value: formatCurrency(totalDebits), sub: '100% of outflow', icon: '↑' },
-            { title: 'Net Cash Flow', value: formatCurrency(netCashFlow), sub: netCashFlow >= 0 ? 'Positive ✓' : 'Negative ✗', icon: '💼' },
-            { title: 'Transaction Count', value: transactionCount.toString(), sub: 'Total Transactions', icon: '⏱' }
+            { title: 'Total Credits', value: formatCurrency(totalCredits), sub: '100% of inflow', icon: '↓', color: theme.green },
+            { title: 'Total Debits', value: formatCurrency(totalDebits), sub: '100% of outflow', icon: '↑', color: theme.pink },
+            { title: 'Net Cash Flow', value: formatCurrency(netCashFlow), sub: netCashFlow >= 0 ? 'Positive ✓' : 'Negative ✗', icon: '💼', color: theme.yellow },
+            { title: 'Transaction Count', value: transactionCount.toString(), sub: 'Total Transactions', icon: '⏱', color: theme.purple }
           ].map((metric, i) => (
-            <NeumorphicView key={i} style={{ width: '48%', padding: 16, borderRadius: 12, marginBottom: 16 }}>
+            <NeumorphicView theme={theme} key={i} style={{ width: '48%', padding: 16, borderRadius: 12, marginBottom: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#EBECF0', justifyContent: 'center', alignItems: 'center', marginRight: 8, ...Platform.select({ web: { boxShadow: 'inset 2px 2px 5px #d1d9e6, inset -2px -2px 5px #ffffff' } }) }}>
-                  <Text style={{ color: '#7f8c8d', fontSize: 12 }}>{metric.icon}</Text>
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: metric.color + '22', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                  <Text style={{ color: metric.color, fontSize: 13 }}>{metric.icon}</Text>
                 </View>
-                <Text style={{ fontSize: 11, color: '#34495e', fontWeight: '600' }} numberOfLines={1}>{metric.title}</Text>
+                <Text style={{ fontSize: 11, color: theme.muted, fontWeight: '600' }} numberOfLines={1}>{metric.title}</Text>
               </View>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#242c34', marginBottom: 2 }} numberOfLines={1}>{metric.value}</Text>
-              <Text style={{ fontSize: 12, color: '#7f8c8d' }}>--</Text>
-              <Text style={{ fontSize: 10, color: '#95a5a6', marginTop: 2 }}>{metric.sub}</Text>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: metric.color, marginBottom: 2 }} numberOfLines={1}>{metric.value}</Text>
+              <Text style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>{metric.sub}</Text>
             </NeumorphicView>
           ))}
         </View>
 
         {/* Health Section */}
-        <NeumorphicView inset={true} style={{ padding: 20, borderRadius: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 6, borderColor: '#bdc3c7', justifyContent: 'center', alignItems: 'center', marginRight: 20 }}>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#242c34' }}>{healthScore}</Text>
-            <Text style={{ fontSize: 10, color: '#7f8c8d' }}>/100</Text>
+        <NeumorphicView theme={theme} inset={true} style={{ padding: 20, borderRadius: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: theme.green, justifyContent: 'center', alignItems: 'center', marginRight: 20 }}>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: theme.green }}>{healthScore}</Text>
+            <Text style={{ fontSize: 10, color: theme.muted }}>/100</Text>
           </View>
 
           <View style={{ flex: 1, minWidth: 200, marginRight: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34', marginRight: 10 }}>Savings Health</Text>
-              <View style={{ backgroundColor: '#e2e8f0', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
-                <Text style={{ fontSize: 11, color: '#7f8c8d', fontWeight: '600' }}>{healthBadge}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: theme.font, marginRight: 10 }}>Savings Health</Text>
+              <View style={{ backgroundColor: theme.green + '22', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                <Text style={{ fontSize: 11, color: theme.green, fontWeight: '600' }}>{healthBadge}</Text>
               </View>
             </View>
-            <Text style={{ fontSize: 13, color: '#34495e', lineHeight: 20 }}>{healthText}</Text>
+            <Text style={{ fontSize: 13, color: theme.muted, lineHeight: 20 }}>{healthText}</Text>
           </View>
 
-          <View style={{ borderLeftWidth: 1, borderLeftColor: '#d1d9e6', paddingLeft: 20 }}>
-            <Text style={{ fontSize: 13, color: '#7f8c8d', fontWeight: '500', marginBottom: 4 }}>Savings Rate</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#242c34', marginBottom: 2 }}>{savingsRate.toFixed(2)}%</Text>
-            <Text style={{ fontSize: 11, color: '#95a5a6' }}>(Net Cash Flow / Credits)</Text>
+          <View style={{ borderLeftWidth: 1, borderLeftColor: theme.border, paddingLeft: 20 }}>
+            <Text style={{ fontSize: 13, color: theme.muted, fontWeight: '500', marginBottom: 4 }}>Savings Rate</Text>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.green, marginBottom: 2 }}>{savingsRate.toFixed(2)}%</Text>
+            <Text style={{ fontSize: 11, color: theme.muted }}>(Net Cash Flow / Credits)</Text>
           </View>
         </NeumorphicView>
       </NeumorphicView>
@@ -563,16 +567,16 @@ export function SavingsReportScreen({ route, navigation }) {
       {/* Bottom Row Filters */}
       <View style={{ marginTop: 10 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: '#242c34' }}>Filter Breakdown</Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: theme.font }}>Filter Breakdown</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity onPress={exportToExcel}>
-              <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ color: '#27ae60', fontWeight: 'bold', fontSize: 11 }}>📊 Export Excel</Text>
+              <NeumorphicView theme={theme} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: theme.green, fontWeight: 'bold', fontSize: 11 }}>📊 Export Excel</Text>
               </NeumorphicView>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => handleGeneratePDF('Bar')}>
-              <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ color: '#242c34', fontWeight: 'bold', fontSize: 11 }}>↓ Download PDF</Text>
+              <NeumorphicView theme={theme} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: theme.font, fontWeight: 'bold', fontSize: 11 }}>↓ Download PDF</Text>
               </NeumorphicView>
             </TouchableOpacity>
           </View>
@@ -580,8 +584,8 @@ export function SavingsReportScreen({ route, navigation }) {
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
           {['All Time', '1 Month', '1 Week', '1 Day', 'Custom'].map(f => (
             <TouchableOpacity key={f} onPress={() => setChartFilter(f)}>
-              <NeumorphicView style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: chartFilter === f ? '#EBECF0' : 'transparent', ...Platform.select({ web: chartFilter === f ? { boxShadow: '2px 2px 5px #d1d9e6, -2px -2px 5px #ffffff' } : {} }) }}>
-                <Text style={{ color: '#34495e', fontSize: 12, fontWeight: '600' }}>{f}</Text>
+              <NeumorphicView theme={theme} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: chartFilter === f ? 1 : 0, borderColor: theme.green }}>
+                <Text style={{ color: chartFilter === f ? theme.green : theme.muted, fontSize: 12, fontWeight: '600' }}>{f}</Text>
               </NeumorphicView>
             </TouchableOpacity>
           ))}
@@ -606,9 +610,9 @@ export function SavingsReportScreen({ route, navigation }) {
 
       {/* Category Ledgers */}
       <TouchableOpacity activeOpacity={0.7} onPress={() => setIsLedgersOpen(!isLedgersOpen)}>
-        <NeumorphicView style={{ padding: 16, borderRadius: 12, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, fontWeight: "bold", color: "#242c34" }}>Category Ledgers</Text>
-          <Text style={{ fontSize: 16, color: '#7f8c8d', fontWeight: 'bold' }}>{isLedgersOpen ? '↑' : '↓'}</Text>
+        <NeumorphicView theme={theme} style={{ padding: 16, borderRadius: 12, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, fontWeight: "bold", color: theme.font }}>Category Ledgers</Text>
+          <Text style={{ fontSize: 16, color: theme.muted, fontWeight: 'bold' }}>{isLedgersOpen ? '↑' : '↓'}</Text>
         </NeumorphicView>
       </TouchableOpacity>
 
@@ -620,35 +624,35 @@ export function SavingsReportScreen({ route, navigation }) {
               activeOpacity={0.7}
               onPress={() => setExpandedCategory(expandedCategory === item.name ? null : item.name)}
             >
-              <NeumorphicView style={{ padding: 16, borderRadius: 12, marginBottom: 12 }}>
+              <NeumorphicView theme={theme} style={{ padding: 16, borderRadius: 12, marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#34495e' }}>{item.name}</Text>
-                  <Text style={{ fontSize: 14, color: '#7f8c8d' }}>{item.count} txns</Text>
+                  <Text style={{ fontWeight: 'bold', fontSize: 16, color: theme.font }}>{item.name}</Text>
+                  <Text style={{ fontSize: 14, color: theme.muted }}>{item.count} txns</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
-                  <Text style={{ fontSize: 14, color: '#27ae60', fontWeight: '500' }}>In: ₹{item.credit.toFixed(2)}</Text>
-                  <Text style={{ fontSize: 14, color: '#e74c3c', fontWeight: '500' }}>Out: ₹{item.debit.toFixed(2)}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: item.netFlow >= 0 ? '#27ae60' : '#e74c3c' }}>Net: ₹{item.netFlow.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 14, color: theme.green, fontWeight: '500' }}>In: ₹{item.credit.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 14, color: theme.pink, fontWeight: '500' }}>Out: ₹{item.debit.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: item.netFlow >= 0 ? theme.green : theme.pink }}>Net: ₹{item.netFlow.toFixed(2)}</Text>
                 </View>
 
                 {expandedCategory === item.name && (
-                  <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: '#d1d9e6', paddingTop: 10 }}>
+                  <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 10 }}>
                     {pieChartTransactions.filter(t => (t.category || "Misc") === item.name).map((t, idx) => (
                       <TouchableOpacity
                         key={idx}
                         onPress={() => openCategoryModal(t)}
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(209, 217, 230, 0.4)', alignItems: 'center' }}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border + '66', alignItems: 'center' }}
                       >
                         <View style={{ flex: 1, paddingRight: 10 }}>
-                          <Text style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>{t.date}</Text>
-                          <Text style={{ fontSize: 13, color: '#242c34' }}>{t.narration}</Text>
+                          <Text style={{ fontSize: 12, color: theme.muted, marginBottom: 2 }}>{t.date}</Text>
+                          <Text style={{ fontSize: 13, color: theme.font }}>{t.narration}</Text>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 13, fontWeight: 'bold', color: t.type === 'Credit' ? '#27ae60' : '#e74c3c', marginRight: 12 }}>
+                          <Text style={{ fontSize: 13, fontWeight: 'bold', color: t.type === 'Credit' ? theme.green : theme.pink, marginRight: 12 }}>
                             {t.type === 'Credit' ? '+' : '-'}{formatCurrency(parseFloat((t.amount || '0').toString().replace(/,/g, '')))}
                           </Text>
-                          <NeumorphicView style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                            <Text style={{ fontSize: 11, color: '#7ebcf9', fontWeight: 'bold' }}>EDIT</Text>
+                          <NeumorphicView theme={theme} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                            <Text style={{ fontSize: 11, color: theme.purple, fontWeight: 'bold' }}>EDIT</Text>
                           </NeumorphicView>
                         </View>
                       </TouchableOpacity>
@@ -664,39 +668,24 @@ export function SavingsReportScreen({ route, navigation }) {
       {/* Middle Row Charts */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 24, marginBottom: 24 }}>
         {/* Top Expenses (Bar) */}
-        <NeumorphicView style={{ flex: 1, minWidth: 320, padding: 24, borderRadius: 16 }}>
+        <NeumorphicView theme={theme} style={{ flex: 1, minWidth: 320, padding: 24, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Top Expenses (Bar)</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: theme.font }}>Top Expenses (Bar)</Text>
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 220, paddingTop: 30, minWidth: 300, justifyContent: 'space-around', flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 220, paddingTop: 30, minWidth: Math.max(chartContainerWidth - 48, 280), justifyContent: 'space-around' }}>
               {ledgerArray.filter(l => l.debit > 0).slice(0, 5).map((l, i) => {
                 const maxDebit = Math.max(...ledgerArray.filter(x => x.debit > 0).slice(0, 5).map(x => x.debit));
                 const barHeight = maxDebit > 0 ? (l.debit / maxDebit) * 140 : 0;
                 const barColor = ["#288cfa", "#e74c3c", "#f39c12", "#27ae60", "#8e44ad"][i % 5];
-                
                 return (
                   <View key={i} style={{ alignItems: 'center', width: 60, marginHorizontal: 10 }}>
-                    <Text style={{ fontSize: 11, color: '#34495e', fontWeight: 'bold', marginBottom: 6 }} numberOfLines={1}>
+                    <Text style={{ fontSize: 11, color: theme.muted, fontWeight: 'bold', marginBottom: 6 }} numberOfLines={1}>
                       {formatShortCurrency(l.debit)}
                     </Text>
-                    <View style={{ 
-                      width: 36, 
-                      height: barHeight, 
-                      backgroundColor: barColor, 
-                      borderRadius: 6, 
-                      ...Platform.select({ web: { boxShadow: '2px 2px 6px #d1d9e6, -2px -2px 6px #ffffff' } }) 
-                    }} />
-                    <Text style={{ 
-                      fontSize: 10, 
-                      color: '#7f8c8d', 
-                      fontWeight: '600', 
-                      marginTop: 12, 
-                      transform: [{ rotate: '-25deg' }], 
-                      width: 70, 
-                      textAlign: 'center' 
-                    }} numberOfLines={1}>
+                    <View style={{ width: 36, height: barHeight, backgroundColor: barColor, borderRadius: 6 }} />
+                    <Text style={{ fontSize: 10, color: theme.muted, fontWeight: '600', marginTop: 8, width: 70, textAlign: 'center' }} numberOfLines={2}>
                       {l.name}
                     </Text>
                   </View>
@@ -707,42 +696,40 @@ export function SavingsReportScreen({ route, navigation }) {
         </NeumorphicView>
 
         {/* Expense Breakdown (Pie) */}
-        <NeumorphicView style={{ flex: 1, minWidth: 320, padding: 24, borderRadius: 16 }}>
+        <NeumorphicView theme={theme} style={{ flex: 1, minWidth: 320, padding: 24, borderRadius: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#242c34' }}>Expense Breakdown (Pie)</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: theme.font }}>Expense Breakdown (Pie)</Text>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ alignItems: 'center' }}>
             <View style={{ position: 'relative' }}>
               <PieChart
                 data={ledgerArray.filter(l => l.debit > 0).slice(0, 5).map((l, i) => ({
                   name: '',
                   population: l.debit,
-                  color: ["#7f8c8d", "#95a5a6", "#bdc3c7", "#d35400", "#c0392b"][i % 5],
-                  legendFontColor: "#7F7F7F",
+                  color: [theme.purple, theme.pink, theme.yellow, theme.green, theme.muted][i % 5],
+                  legendFontColor: theme.muted,
                   legendFontSize: 12
                 }))}
-                width={180}
+                width={Math.min(chartContainerWidth, 200)}
                 height={180}
-                chartConfig={{ color: () => '#000' }}
-                accessor={"population"}
-                backgroundColor={"transparent"}
-                paddingLeft={"45"}
+                chartConfig={{ color: () => theme.font, backgroundColor: theme.card, backgroundGradientFrom: theme.card, backgroundGradientTo: theme.card }}
+                accessor="population"
+                backgroundColor="transparent"
+                paddingLeft="45"
                 hasLegend={false}
                 absolute
               />
-              {/* Donut hole hack */}
-              <View style={{ position: 'absolute', top: 50, left: 50, width: 80, height: 80, borderRadius: 40, backgroundColor: '#EBECF0', ...Platform.select({ web: { boxShadow: 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff' } }) }} />
+              <View style={{ position: 'absolute', top: 50, left: 50, width: 80, height: 80, borderRadius: 40, backgroundColor: theme.card }} />
             </View>
-
-            <View style={{ marginLeft: 20, flex: 1 }}>
+            <View style={{ width: '100%', marginTop: 16 }}>
               {ledgerArray.filter(l => l.debit > 0).slice(0, 5).map((l, i) => (
-                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: ["#7f8c8d", "#95a5a6", "#bdc3c7", "#d35400", "#c0392b"][i % 5], marginRight: 10 }} />
-                    <Text style={{ fontSize: 13, color: '#242c34', fontWeight: '600', maxWidth: 100 }} numberOfLines={1}>{l.name}</Text>
+                    <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: [theme.purple, theme.pink, theme.yellow, theme.green, theme.muted][i % 5], marginRight: 8 }} />
+                    <Text style={{ fontSize: 12, color: theme.font, fontWeight: '600', maxWidth: 120 }} numberOfLines={1}>{l.name}</Text>
                   </View>
-                  <Text style={{ fontSize: 13, color: '#34495e' }}>{formatCurrency(l.debit)} ({((l.debit / totalDebits) * 100).toFixed(2)}%)</Text>
+                  <Text style={{ fontSize: 12, color: theme.muted }}>{formatCurrency(l.debit)} ({((l.debit / totalDebits) * 100).toFixed(1)}%)</Text>
                 </View>
               ))}
             </View>
@@ -801,7 +788,8 @@ export function SavingsReportScreen({ route, navigation }) {
         </TouchableOpacity>
       </Modal>
 
-    </ScrollView>
+      </ScrollView>
+    </DashboardLayout>
   );
 }
 
